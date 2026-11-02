@@ -33,6 +33,14 @@ const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} 
 
   await page.goto(PAGE);
   await page.waitForTimeout(1200);
+  await page.evaluate(() => {
+    window.__earlyRecall = [];
+    const original = recall;
+    recall = async (card, first) => {
+      if (!first && card.due > clock() + 0.5) __earlyRecall.push(card.t);
+      return original(card, first);
+    };
+  });
 
   // Voice ranking: clearest voice first, novelty voices excluded.
   const ranked = await page.evaluate(() => ({ es: TTS.forLang('es-MX').map(v => v.name), en: TTS.forLang('en-US').map(v => v.name) }));
@@ -49,6 +57,8 @@ const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} 
   await page.waitForSelector('#home:not([hidden]) .summary', { timeout: 120000 });
   const es = await page.evaluate(() => { const P = __parley.prog('es-MX'); return { done: !!P.done['1'], n: Object.keys(P.items).length }; });
   check('Hands-free lesson completes', es.done && es.n === 20, JSON.stringify(es));
+  check('Hands-free completion does not claim accuracy', await page.evaluate(() => __parley.prog('es-MX').done['1'].acc === null));
+  check('Recall respects scheduled gaps', await page.evaluate(() => __earlyRecall.length === 0));
   const pitches = await page.evaluate(() => [...new Set(__spoken.filter(s => s.t.trim()).map(s => s.pitch))]);
   check('No pitch shifting', pitches.length === 1 && pitches[0] === 1, JSON.stringify(pitches));
 
@@ -90,6 +100,25 @@ const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} 
   await page.evaluate(id => { __parley.S.settings.mode = 'handsfree'; __parley.startSession('lesson', 'es-MX', id); }, custom[0]);
   await page.waitForFunction(() => !__parley.X, null, { timeout: 120000 });
   check('Custom lesson completes through recall engine', await page.evaluate(id => !!__parley.prog('es-MX').done[id], custom[0]));
+
+  const course = await page.evaluate(() => {
+    const lessons = [1, 2, 3, 4, 5].map(id => getLesson('es-MX', id));
+    return lessons.every(l => l && l.dialogue.length >= 6 && l.items.length >= 7 && l.drills.length >= 6);
+  });
+  check('Five original Spanish lessons available offline', course);
+  const beforeEarly = await page.evaluate(() => {
+    const p = __parley.prog('es-MX');
+    for (const it of Object.values(p.items)) it.due = Date.now() + 86400000;
+    const built = buildLessonSession('es-MX', '2');
+    return { n: built.cards.filter(c => c.src === 'review' && c.early).length, due: Object.fromEntries(Object.entries(p.items).map(([k, i]) => [k, i.due])) };
+  });
+  check('Next lesson recycles earlier material before it is due', beforeEarly.n === 6);
+  await page.evaluate(() => { window.__spoken = []; __parley.S.settings.mode = 'handsfree'; __parley.startSession('lesson', 'es-MX', '2'); });
+  await page.waitForFunction(() => !__parley.X, null, { timeout: 120000 });
+  check('Second course lesson completes with conversation practice', await page.evaluate(() =>
+    !!__parley.prog('es-MX').done['2'] && __spoken.some(s => s.t.includes('You are speaker A'))));
+  check('Early course review preserves future due dates', await page.evaluate(dates =>
+    Object.entries(dates).every(([k, due]) => __parley.prog('es-MX').items[k].due === due), beforeEarly.due));
 
   check('No page errors', errors.length === 0, errors.join('; '));
   await browser.close();

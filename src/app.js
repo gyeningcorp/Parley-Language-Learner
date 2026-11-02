@@ -39,7 +39,7 @@ function estimate(text, rate = 1) {
 }
 
 /* ---------- state + storage ---------- */
-const DEFAULTS = { think: 4, rate: 0.9, mode: 'active', roman: true, dlgText: false, gender: 'neutral', voices: {} };
+const DEFAULTS = { think: 5, rate: 0.9, mode: 'handsfree', roman: true, dlgText: false, gender: 'neutral', voices: {} };
 let S = { settings: { ...DEFAULTS }, lang: 'es-MX', custom: [], progress: {}, lessons: {}, updatedAt: 0 };
 const LS = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
 function loadLocal() {
@@ -62,7 +62,7 @@ function saveLesson(code, id, L) {
   LS.set('parley.v1.lessons', S.lessons);
   Cloud.put('l_' + code + '_' + id, L);
 }
-function getLesson(code, id) { return S.lessons[code]?.[id] || (String(id) === '1' ? BUILTIN[code] : null) || null; }
+function getLesson(code, id) { return COURSE[code]?.[id] || S.lessons[code]?.[id] || (String(id) === '1' ? BUILTIN[code] : null) || null; }
 function langInfo(code) {
   return LANGS.find(l => l.code === code) || S.custom.find(l => l.code === code) || { code, name: code, native: '' };
 }
@@ -251,6 +251,12 @@ function buildLessonSession(code, id) {
   const thisKeys = new Set([...L.items.map(i => itemKey(code, i.t)), ...L.drills.map(d => itemKey(code, d.t))]);
   Object.entries(P.items).filter(([k, it]) => it.due <= now && !thisKeys.has(k)).sort((a, b) => a[1].due - b[1].due).slice(0, 8)
     .forEach(([k, it]) => cards.push(mkCard({ ...it, key: k }, 'review')));
+  // Recycle recent course material even when tomorrow's review is not due.
+  // Early practice must not advance the long-term review date.
+  const reviewKeys = new Set(cards.map(c => c.key));
+  Object.entries(P.items).filter(([k]) => !thisKeys.has(k) && !reviewKeys.has(k))
+    .sort((a, b) => (b[1].last || 0) - (a[1].last || 0)).slice(0, Math.max(0, 6 - cards.length))
+    .forEach(([k, it]) => cards.push(mkCard({ ...it, key: k, early: true }, 'review')));
   const fresh = [];
   for (const i of L.items) { const k = itemKey(code, i.t); if (!replay && P.items[k] && P.items[k].lesson !== String(id)) continue; fresh.push(mkCard({ ...i, kind: 'item', key: k }, 'new')); }
   for (const d of L.drills) { const k = itemKey(code, d.t); if (!replay && P.items[k] && P.items[k].lesson !== String(id)) continue; fresh.push(mkCard({ ...d, kind: 'drill', key: k }, 'new')); }
@@ -277,7 +283,7 @@ async function startSession(kind, code, id) {
   const L = langInfo(code);
   X = { kind, code, id: String(id || ''), L, ttsLang: code.startsWith('x-') ? '' : code, lesson: built.lesson, cards: built.cards, replay: built.replay,
     t0: performance.now(), pausedMs: 0, paused: false, aborted: false, finished: false, tipIdx: 0, introduced: 0, lastNewKind: 'drill',
-    byKey: Object.fromEntries(built.cards.map(c => [c.key, c])), stats: { ok: 0, miss: 0 } };
+    mode: S.settings.mode, byKey: Object.fromEntries(built.cards.map(c => [c.key, c])), stats: { ok: 0, miss: 0 } };
   X.silentTarget = !X.ttsLang || !TTS.ok || (TTS.voices.length > 0 && !TTS.has(X.ttsLang));
   showPlayer();
   if (X.silentTarget) { const el = $('#pTip'); el.textContent = `No ${L.name} voice on this device, so ${L.name} is shown as text. Read it aloud during the pauses.`; el.hidden = false; setTimeout(() => { el.hidden = true; }, 9000); }
@@ -293,6 +299,9 @@ async function startSession(kind, code, id) {
 
 async function runLesson() {
   const L = X.lesson;
+  phase('Get ready', 'Guided audio lesson');
+  await say(`Welcome to your ${X.L.name} lesson. Listen, then speak out loud during each pause. Try to answer before the speaker. You can pause at any time.`);
+  if (L.goal) await say(L.goal);
   if (L.dialogue.length) {
     phase('Listen', 'Conversation');
     await say(`Lesson ${X.id.startsWith('c') ? '' : X.id + '. '}${L.title}. First, listen to a short conversation in ${X.L.name}. You don't need to understand it yet.`);
@@ -300,12 +309,33 @@ async function runLesson() {
   }
   if (X.cards.some(c => c.src === 'review')) { phase('Warm-up', 'Review'); await say("Let's warm up with a few things from before."); }
   await core();
+  if (L.dialogue.length) await roleplay();
   if (L.dialogue.length) {
     phase('Listen again', 'Conversation');
     await say("Now listen to the conversation again. This time, you'll understand it.");
     await playDialogue(true);
   }
   await say("That's the end of this lesson. Well done.");
+}
+async function roleplay() {
+  phase('Your conversation', 'Take the part of speaker A');
+  await say('Now take part in the conversation. You are speaker A. Use the English cue to answer out loud. Then compare with the speaker.');
+  for (const line of X.lesson.dialogue) {
+    check();
+    if (line.s === 'A') {
+      showCard({ tag: 'Your turn', cue: line.en, target: line.t, roman: line.r, veiled: true, recall: true });
+      await say(line.en);
+      showThinking(true);
+      await wait(S.settings.think + Math.min(4, estimate(line.t) * 0.5), { skippable: true, ring: true });
+      showThinking(false); reveal();
+      await say(line.t, 'tgt');
+      await wait(repeatPause(line.t));
+    } else {
+      showCard({ tag: 'Listen to your partner', cue: '', target: line.t, roman: line.r });
+      await say(line.t, 'tgt', { voice: 1 });
+      await wait(0.6);
+    }
+  }
 }
 async function runReview() {
   phase('Review', X.cards[0]?.early ? 'Extra practice' : 'Due today');
@@ -330,7 +360,19 @@ async function core() {
     }
     if (!pending.length) { if (nextNew()) { const n2 = nextNew(); if (n2.kind === 'drill') await recall(n2, true); else await introduce(n2); continue; } break; }
     pending.sort((a, b) => a.due - b.due);
-    await recall(pending[0]);
+    // Do not collapse the spacing by immediately testing the next pending card.
+    // Fill the gap with a listening passage, then allow a quiet recall break.
+    if (X.lesson?.dialogue.length && pending[0].due - clock() > 35 && X.listeningBreakDue !== pending[0].due) {
+      X.listeningBreakDue = pending[0].due;
+      phase('Listening break', 'Let the phrases settle');
+      await playDialogue(false);
+    }
+    const gap = pending[0].due - clock();
+    if (gap > 0) {
+      phase('Recall break', 'Next speaking prompt soon');
+      showCard({ tag: 'Recall break', cue: 'Relax and listen for the next prompt.', target: '', roman: '' });
+      await wait(Math.min(gap, 20));
+    }
   }
 }
 function nextNew() {
@@ -467,9 +509,9 @@ function commit() {
   const total = X.cards.reduce((s, c) => s + c.need, 0), got = X.cards.reduce((s, c) => s + Math.min(c.wins, c.need), 0);
   const frac = total ? got / total : 0;
   const acc = X.stats.ok + X.stats.miss ? X.stats.ok / (X.stats.ok + X.stats.miss) : 1;
-  if (X.kind === 'lesson' && (X.finished || frac >= 0.8)) P.done[X.id] = { at: now, acc: Math.round(acc * 100) };
+  if (X.kind === 'lesson' && X.finished) P.done[X.id] = { at: now, acc: X.mode === 'active' ? Math.round(acc * 100) : null, mode: X.mode };
   saveProg(X.code);
-  return { kind: X.kind, id: X.id, code: X.code, learned, acc, minutes: clock() / SPEED / 60, finished: X.finished, frac, reviewed: X.cards.filter(c => c.src === 'review' && c.reps).length };
+  return { kind: X.kind, id: X.id, code: X.code, learned, acc, mode: X.mode, minutes: clock() / SPEED / 60, finished: X.finished, frac, reviewed: X.cards.filter(c => c.src === 'review' && c.reps).length };
 }
 function endSession(result) {
   if (!X) return;
@@ -665,7 +707,7 @@ function renderVoice() {
            : 'This browser has no speech engine. Text and timing still work.';
   el.replaceChildren(h('span', { class: 'dot' + (v && !isBasic(v) ? '' : ' warn') }),
     h('span', { style: 'flex:1' }, text, v && isBasic(v) ? h('span', { class: 'muted' }, ' — a clearer voice can be downloaded.') : null),
-    TTS.voices.length ? h('button', { class: 'linkbtn', onclick: () => openSettings('voices') }, 'Change voice') : null);
+    ...(TTS.voices.length ? [h('button', { class: 'linkbtn', onclick: () => openSettings('voices') }, 'Change voice')] : []));
 }
 function lessonState(code, n) {
   const P = prog(code);
@@ -695,6 +737,8 @@ function renderHome(result, flags = {}) {
 
   const hero = h('section', { class: 'panel hero' },
     h('div', null, h('h1', null, L.name), L.native ? h('div', { class: 'native', lang: L.code }, L.native) : null),
+    h('div', { class: 'tip' }, h('b', null, 'Listen. Think. Speak.'),
+      h('div', null, 'One guided lesson at a time. Answer aloud during the pauses, build phrases from the end, then join the conversation.')),
     h('div', { class: 'stats' },
       h('div', { class: 'stat' }, h('b', null, `${st.done}/30`), h('span', null, 'lessons done')),
       h('div', { class: 'stat' }, h('b', null, st.learned), h('span', null, 'phrases learned')),
@@ -707,7 +751,7 @@ function renderHome(result, flags = {}) {
       h('button', { class: 'btn', onclick: () => GEN?.ctl.abort() }, 'Stop')));
   } else {
     const label = nextState === 'write' ? `Write Lesson ${st.next} with Claude` : `${P.done[st.next] ? 'Replay' : 'Start'} Lesson ${st.next}`;
-    const sub = nextState === 'write' ? `${nextT} · about a minute to write, then ~25 min` : `${nextT} · about 20–30 min`;
+    const sub = nextState === 'write' ? `${nextT} · generated on demand` : `${nextT} · guided audio · go at your pace`;
     const ready = flags.readyId && getLesson(L.code, flags.readyId);
     hero.append(ready
       ? h('button', { class: 'btn primary', onclick: () => startSession('lesson', L.code, flags.readyId) }, h('span', null, `Lesson ready: start ${/^c/.test(flags.readyId) ? ready.title : 'Lesson ' + flags.readyId}`), h('span', { class: 'sub' }, `${ready.items.length} new phrases · ${ready.drills.length} combinations`))
@@ -738,10 +782,10 @@ function renderHome(result, flags = {}) {
     const title = getLesson(L.code, n)?.title || theme(n).title;
     rows.push(h('li', null, h('button', { onclick: () => onLessonTap(L.code, String(n)), disabled: !!GEN },
       h('span', { class: 'n' }, String(n).padStart(2, '0')), h('span', { class: 't' }, title),
-      h('span', { class: 'pill ' + (s === 'done' ? 'done' : isNext ? 'next' : s === 'ready' ? 'ready' : '') }, s === 'done' ? `Done ${P.done[n].acc}%` : isNext ? 'Next' : s === 'ready' ? 'Ready' : 'Write'))));
+      h('span', { class: 'pill ' + (s === 'done' ? 'done' : isNext ? 'next' : s === 'ready' ? 'ready' : '') }, s === 'done' ? (P.done[n].acc == null ? 'Completed' : `Done ${P.done[n].acc}%`) : isNext ? 'Next' : s === 'ready' ? 'Ready' : 'Write'))));
   }
   kids.push(h('section', { class: 'panel' }, h('h2', null, 'Course'), h('p', { class: 'muted', style: 'margin:0;font-size:14px' },
-    'The same 30-step path for every language. Lesson 1 is built in for Spanish, French, German, Italian, Portuguese, Japanese, Mandarin, Korean, Russian, Arabic and Hindi. Claude writes every other lesson when you open it, building on the phrases you have already learned.'),
+    L.code === 'es-MX' ? 'Five original starter lessons are included, with earlier phrases recycled in later sessions. Follow them in order, ideally one lesson per day. Lessons 6–30 require Claude generation.' : 'Lesson 1 is included for 11 languages. The remaining steps are a course outline and require Claude generation. Follow lessons in order, ideally one per day.'),
     h('ul', { class: 'lessons' }, rows)));
 
   const lad = h('div', { class: 'ladder' }); renderLadder(lad, -1);
@@ -757,14 +801,19 @@ function renderHome(result, flags = {}) {
   renderVoice();
 }
 function summaryPanel(r) {
+  const score = r.mode === 'handsfree' ? 'Audio practice' : `${Math.round(r.acc * 100)}%`;
+  const measure = r.mode === 'handsfree' ? 'Answers heard; recall was not graded' : 'Self-graded recall accuracy';
   if (r.kind === 'review') {
     return h('section', { class: 'panel summary' }, h('div', { class: 'tag' }, 'Review finished'),
-      h('div', { class: 'big' }, `${Math.round(r.acc * 100)}%`), h('div', { class: 'muted' }, `${r.reviewed} phrases reviewed in ${Math.max(1, Math.round(r.minutes))} min. Missed phrases come back tomorrow; the rest move up the ladder.`));
+      h('h2', null, score), h('div', { class: 'muted' }, `${measure}. ${r.reviewed} phrases practiced in ${Math.max(1, Math.round(r.minutes))} min.`));
   }
   return h('section', { class: 'panel summary' }, h('div', { class: 'tag' }, r.finished ? 'Lesson complete' : 'Session ended early'),
-    h('div', { class: 'row', style: 'align-items:baseline' }, h('div', { class: 'big' }, `${Math.round(r.acc * 100)}%`), h('div', { class: 'muted' }, `recall accuracy · ${Math.max(1, Math.round(r.minutes))} min`)),
+    h('h2', null, score), h('div', { class: 'muted' }, `${measure} · ${Math.max(1, Math.round(r.minutes))} min`),
     r.learned.length ? h('ul', { class: 'wordlist' }, r.learned.slice(0, 14).map(c => h('li', null, h('span', { class: 'w', dir: 'auto', lang: r.code }, c.t), h('span', { class: 'muted' }, c.en)))) : null,
-    h('div', { class: 'muted', style: 'font-size:14px' }, r.learned.length ? `First review of these ${r.learned.length} phrases: tomorrow.` : 'Progress saved.'));
+    h('div', { class: 'muted', style: 'font-size:14px' }, r.finished
+      ? (r.mode === 'active' && r.acc < 0.8 ? 'Repeat this lesson before moving on. Aim to answer comfortably before the speaker.' : 'Come back tomorrow for review and your next lesson. Repeat today if the answers still feel difficult.')
+      : 'Phrase practice saved. Repeat the lesson to finish it.'),
+    h('button', { class: 'btn', onclick: () => startSession('lesson', r.code, r.id) }, 'Repeat this lesson'));
 }
 
 /* ---------- sheets ---------- */

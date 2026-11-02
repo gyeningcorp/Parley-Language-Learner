@@ -5,7 +5,7 @@ const path = require('path');
 const read = f => fs.readFileSync(path.join(__dirname, f), 'utf8');
 
 const html = read('src/shell.html')
-  .replace('/*CONTENT*/', () => read('src/content.js'))
+  .replace('/*CONTENT*/', () => read('src/content.js') + '\n' + read('src/course.js'))
   .replace('/*APP*/', () => read('src/app.js'));
 
 fs.writeFileSync(path.join(__dirname, 'index.html'), html);

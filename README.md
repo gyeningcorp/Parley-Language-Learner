@@ -6,6 +6,12 @@ It is a single HTML file with no dependencies and no build step to run it.
 
 ## How a lesson works
 
+Parley uses original course material with guided audio prompts. New learners start in hands-free mode. Spanish (Latin America) includes five sequential starter lessons; the other supported starter languages include Lesson 1. Further numbered lessons remain generated on demand in Claude. This is not a complete prerecorded 30-lesson course, and lesson length varies with speech speed, pauses, and grading.
+
+Each lesson opens with a listening conversation, teaches and combines phrases, invites you to take speaker A's part with English cues and answer pauses, and closes with the conversation again. Earlier phrases return in later lessons even before their next due date; successful early practice preserves that date. Recall prompts wait for their scheduled gap rather than testing immediately. Listening passages and quiet breaks fill remaining gaps.
+
+Hands-free completion records exposure, not measured accuracy. Active mode records your own Got it / Missed judgments. Only a fully finished lesson is marked complete; ending early still saves phrase practice.
+
 1. **Answer before you hear it.** An English cue, a countdown, then the native answer. Pulling the phrase from memory is what makes it stick.
 2. **Graduated recall.** Each phrase returns at 5 seconds, 25 seconds, 2 minutes and 10 minutes during the lesson, then 1 day, 5 days, 25 days, 4 months and 2 years. A miss sends it back to a short gap.
 3. **Backward build-up.** Long phrases are taught from the end ("favor", then "por favor"), keeping the natural stress and melody.
@@ -22,7 +28,8 @@ Two modes: **Active** (tap Got it / Missed after each answer) and **Hands-free**
 
 - One 30-lesson path shared by every language (`SYLLABUS` in `src/content.js`).
 - Lesson 1 is built in for Spanish, French, German, Italian, Portuguese, Japanese, Mandarin, Korean, Russian, Arabic and Hindi.
-- Every other lesson, every other language, and lessons on any topic you type are written by Claude on demand, building on the phrases you already know. Lessons written this way can contain mistakes, especially in less widely spoken languages.
+- Spanish (Latin America) also includes original Lessons 2–5: introductions, understanding speech, prices, and directions (`src/course.js`).
+- Lessons beyond those included, every other language, and generated topic lessons are written by Claude on demand, building on the phrases you already know. Lessons written this way can contain mistakes, especially in less widely spoken languages.
 
 ## Audio
 
