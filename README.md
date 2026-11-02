@@ -1,68 +1,108 @@
 # Parley Language Learner
 
-An audio-first language trainer for 110+ languages. You hear an English cue, say the phrase out loud during a pause, then hear a native voice give the answer. Each phrase comes back at growing gaps until it sticks.
+A standalone audio-first language trainer. Listen to a conversation, answer English cues aloud before hearing the translation, build phrases backward, combine familiar expressions, and take one speaker's part.
 
-It is a single HTML file with no dependencies and no build step to run it.
+Parley uses original lesson material and device text-to-speech. It contains no commercial course scripts or recordings. Duration varies with speech speed, pauses, review load, and grading.
 
-## How a lesson works
+## Run
 
-Parley uses original course material with guided audio prompts. New learners start in hands-free mode. Spanish (Latin America) includes five sequential starter lessons; the other supported starter languages include Lesson 1. Further numbered lessons remain generated on demand in Claude. This is not a complete prerecorded 30-lesson course, and lesson length varies with speech speed, pauses, and grading.
+Requires Node.js 22.12 or newer. No production dependencies are needed.
 
-Each lesson opens with a listening conversation, teaches and combines phrases, invites you to take speaker A's part with English cues and answer pauses, and closes with the conversation again. Earlier phrases return in later lessons even before their next due date; successful early practice preserves that date. Recall prompts wait for their scheduled gap rather than testing immediately. Listening passages and quiet breaks fill remaining gaps.
-
-Hands-free completion records exposure, not measured accuracy. Active mode records your own Got it / Missed judgments. Only a fully finished lesson is marked complete; ending early still saves phrase practice.
-
-1. **Answer before you hear it.** An English cue, a countdown, then the native answer. Pulling the phrase from memory is what makes it stick.
-2. **Graduated recall.** Each phrase returns at 5 seconds, 25 seconds, 2 minutes and 10 minutes during the lesson, then 1 day, 5 days, 25 days, 4 months and 2 years. A miss sends it back to a short gap.
-3. **Backward build-up.** Long phrases are taught from the end ("favor", then "por favor"), keeping the natural stress and melody.
-4. **A small core, used at once.** About a dozen high-frequency phrases per lesson, recombined into new sentences you build yourself, framed by a short conversation you hear at the start and understand by the end.
-
-Two modes: **Active** (tap Got it / Missed after each answer) and **Hands-free** (plays straight through like an audio course).
-
-## Practice studio
-
-- **Create a lesson:** add 3–14 trusted translations, one per line as `English cue | translation | optional romanization`. Your lessons are saved locally under Your topics and use the same audio and spaced-recall engine. This works without Claude.
-- **Phrasebook:** search learned phrases by translation, English cue, or romanization; filter to due reviews and listen at your chosen speech speed.
-
-## Languages and content
-
-- One 30-lesson path shared by every language (`SYLLABUS` in `src/content.js`).
-- Lesson 1 is built in for Spanish, French, German, Italian, Portuguese, Japanese, Mandarin, Korean, Russian, Arabic and Hindi.
-- Spanish (Latin America) also includes original Lessons 2–5: introductions, understanding speech, prices, and directions (`src/course.js`).
-- Lessons beyond those included, every other language, and generated topic lessons are written by Claude on demand, building on the phrases you already know. Lessons written this way can contain mistakes, especially in less widely spoken languages.
-
-## Audio
-
-Speech uses the device's built-in voices through the Web Speech API. Voices are ranked clearest first (Premium, Enhanced, Natural, Siri, Google, Standard, Basic), and Settings › Voices lets you pick and preview the language speaker and the English narrator. Languages with no voice on the device fall back to text.
-
-For the clearest audio on iPhone, download an Enhanced or Premium voice under Settings › Accessibility › Spoken Content › Voices.
-
-## Running it
-
-| Where | What works |
-| --- | --- |
-| As a Claude artifact | Everything: Claude-written lessons (`claude.use("sample")`) and progress synced to your Claude account (`claude.use("db")`). |
-| Any static host or opened locally | Built-in Lesson 1 for 11 languages, reviews, all settings. Progress is kept in the browser's local storage. Claude-written lessons are unavailable. |
-
-## Project layout
-
-```
-index.html        built, self-contained app (open this)
-src/shell.html    markup and styles
-src/content.js    languages, 30-lesson syllabus, built-in Lesson 1 content
-src/app.js        scheduler, speech player, UI, storage, lesson writer
-build.js          assembles src/ into index.html
-tests/smoke.js    runs full lessons at 60x speed in headless Chromium
+```sh
+node build.js
+npm start
 ```
 
-## Develop
+Open http://127.0.0.1:3000. Included lessons, review, settings, phrasebook, and user-authored lessons work without a model account. Opening index.html directly runs included content; generation and server course loading require the server.
 
-```bash
-node build.js                     # rebuild index.html after editing src/
-npm install && npx playwright install chromium
-npm test                          # build + smoke test
+## Available content
+
+- 110 listed languages, each with a 30-step syllabus.
+- 30 included Spanish (Latin America) lessons; Lessons 6–30 are explicitly marked as AI drafts awaiting language review.
+- Additional first lessons bring the included library to 41 playable lessons across 12 locale codes. Course studio reports exact coverage.
+- Unfilled slots are not counted as completed lessons.
+- The full 3,300-lesson catalog has NOT been generated or reviewed. It needs a configured model account and a catalog job.
+
+## Connect standalone generation
+
+1. Copy .env.example to .env on the server.
+2. Set OPENAI_API_KEY to your model API credential.
+3. Set PARLEY_ADMIN_TOKEN to a random value of at least 24 characters. Generate one with:
+
+```sh
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-## License
+4. Start or restart npm start.
+5. In Course studio, sign in with the administrator token and build a selected language or all 110 courses.
 
-MIT
+The API key stays on the server. The browser receives an HttpOnly administrator session cookie. Existing lessons are public; generation and course jobs require administrator access. Learner progress and personal lessons stay in browser local storage.
+
+Generation uses the OpenAI Responses API with a strict lesson schema. PARLEY_MODEL selects the model (default gpt-5.4). See [official structured output documentation](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses) and [model documentation](https://developers.openai.com/api/docs/models/gpt-5.4). Credentials, account access, and usage charges must be configured separately.
+
+## Build all courses through Lesson 30
+
+Run the server, then use Course studio or:
+
+```sh
+npm run catalog:build -- --languages all
+# Or a smaller selection:
+npm run catalog:build -- --languages fr-FR,ja-JP
+```
+
+The CLI reads .env and submits a durable job to the local server. Use --url https://your-host.example for a remote server; it refuses unencrypted remote HTTP.
+
+Each course builds in lesson order with earlier vocabulary as context. Saved lessons are skipped. Phrase counts, fields, duplicates, two-speaker dialogue, and backward-build structure are checked before saving. Jobs track progress, pause/resume, and recover after server restart. Errors stop a job for review rather than counting failures as completed content. Pause waits for the current lesson request to finish. A canceled browser request may still finish a numbered lesson on the server.
+
+Schema validation checks STRUCTURE, not translation correctness. Drafts need language review, especially for less widely represented languages, dialects, romanization, register, and pronunciation. Test fixtures are never production lessons.
+
+## Learning and audio
+
+- New learners start hands-free; active mode supports Got it / Missed self-grading.
+- Hands-free records exposure, not measured accuracy.
+- Only a finished lesson is marked complete. Early exits save phrase practice.
+- Earlier phrases return across lessons; successful early review preserves future due dates.
+- Recall respects scheduled gaps. Listening passages and quiet breaks fill gaps.
+- Device voices vary by language. Missing voices fall back to text; a listed course does not guarantee device audio support.
+- Phrasebook searches translations, English cues, and romanization, with playback and due filtering.
+- Personal lessons accept 3–14 lines as English cue | translation | optional romanization.
+
+## Storage and deployment
+
+PARLEY_DATA_DIR (default ./data) holds courses/<locale>/<lesson>.json and jobs.json. Back up this directory. It is ignored by Git and never served as a public directory; lessons are exposed only through the read API.
+
+Run one server process per data directory. Multi-instance deployment needs shared durable storage and a distributed worker. Static-only hosts cannot run generation.
+
+A Dockerfile supports a long-running container:
+
+```sh
+docker build -t parley .
+docker run --env-file .env -p 3000:3000 -v parley-data:/app/data parley
+```
+
+For Docker, set HOST=0.0.0.0 and PARLEY_DATA_DIR=/app/data in the environment. For public hosting, use HTTPS and set PARLEY_PUBLIC_ORIGIN to the public origin so write-origin checks and secure cookies work behind the proxy. Never commit .env or put the provider key in client code.
+
+No production deployment or real full-catalog generation is implied by this repository change.
+
+## Tests
+
+```sh
+npm install
+npx playwright install chromium
+npm test
+npm run test:server
+```
+
+Backend tests use a deterministic test provider, temporary storage, and real HTTP requests: authentication, secret paths, failures, validation, persistence, sequential generation, language counts, and restart recovery. Browser checks exercise guided lessons, active/hands-free practice, scheduling, phrase search, and personal lessons. Real-device audio and native-language review are separate checks.
+
+## Files
+
+- src/content.js: language catalog, syllabus, first lessons
+- src/course.js and src/course-es.js: original Spanish draft course
+- src/app.js and src/shell.html: browser and guided audio engine
+- server/: standalone API, provider, persistent lessons, durable queue
+- scripts/build-catalog.js: submit catalog builds
+- build.js: assemble index.html
+- tests/: backend and browser checks
+
+MIT license.

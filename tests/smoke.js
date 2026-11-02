@@ -102,10 +102,10 @@ const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} 
   check('Custom lesson completes through recall engine', await page.evaluate(id => !!__parley.prog('es-MX').done[id], custom[0]));
 
   const course = await page.evaluate(() => {
-    const lessons = [1, 2, 3, 4, 5].map(id => getLesson('es-MX', id));
+    const lessons = Array.from({ length: 30 }, (_, n) => getLesson('es-MX', n + 1));
     return lessons.every(l => l && l.dialogue.length >= 6 && l.items.length >= 7 && l.drills.length >= 6);
   });
-  check('Five original Spanish lessons available offline', course);
+  check('Thirty original Spanish lessons available offline', course);
   const beforeEarly = await page.evaluate(() => {
     const p = __parley.prog('es-MX');
     for (const it of Object.values(p.items)) it.due = Date.now() + 86400000;

@@ -452,6 +452,149 @@ const COURSE = { 'es-MX': {
     ['Use dónde está to ask where a place is.','The h in hotel is silent. Keep the vowels clear.'])
 } };
 
+/* Original Spanish course drafts, lessons 6–30. Requires language review. */
+// Each spec supplies new chunks, six conversation turns, and three extra combinations.
+// The learner's three turns also become prompted combination drills.
+function spanishCourseLesson(id, vocabulary, conversation, combinations, tip) {
+  const chunks = t => {
+    const words = t.replace(/[¿?¡!.]+/g, '').split(/\s+/);
+    if (words.length < 2) return [];
+    return [...new Set([words.slice(-1).join(' '), words.slice(-2).join(' '), words.length > 3 ? words.slice(-3).join(' ') : t, t])].slice(-4);
+  };
+  const dialogue = conversation.map(([en, t], i) => [i % 2 ? 'B' : 'A', t, '', en]);
+  const drills = [...conversation.filter((_, i) => i % 2 === 0), ...combinations];
+  const lesson = B(theme(id).title, dialogue, vocabulary.map(([en, t]) => [t, '', en, chunks(t)]), drills, [tip]);
+  return { ...lesson, goal: theme(id).goal, ai: true, reviewStatus: 'unreviewed' };
+}
+const ES_DRAFTS = [
+  [6,
+    [['a table for two','una mesa para dos'],['the menu','el menú'],['I want to eat','quiero comer'],['chicken','pollo'],['rice','arroz'],['the bill','la cuenta'],['Do you have…?','¿Tiene…?'],['here you are','aquí tiene']],
+    [['A table for two, please.','Una mesa para dos, por favor.'],['Here you are. The menu.','Aquí tiene. El menú.'],['Do you have chicken and rice?','¿Tiene pollo y arroz?'],['Yes.','Sí.'],['The bill, please.','La cuenta, por favor.'],['Here you are.','Aquí tiene.']],
+    [['I want to eat chicken.','Quiero comer pollo.'],['I would like rice, please.','Quisiera arroz, por favor.'],['Do you have the menu?','¿Tiene el menú?']],
+    'Quiero comer means I want to eat. Keep quisiera for a softer request when ordering.'],
+  [7,
+    [['today','hoy'],['tomorrow','mañana'],['What time is it?','¿Qué hora es?'],['It is two o’clock','son las dos'],['at two o’clock','a las dos'],['Monday','lunes'],['Tuesday','martes'],['in the morning','por la mañana']],
+    [['Excuse me. What time is it?','Disculpe. ¿Qué hora es?'],['It is two o’clock.','Son las dos.'],['Today is Monday.','Hoy es lunes.'],['Yes. Tomorrow is Tuesday.','Sí. Mañana es martes.'],['Tomorrow at two o’clock, please.','Mañana a las dos, por favor.'],['Yes, thank you.','Sí, gracias.']],
+    [['Tomorrow morning.','Mañana por la mañana.'],['Today at two o’clock.','Hoy a las dos.'],['Tuesday morning.','El martes por la mañana.']],
+    'Mañana can mean tomorrow or morning. Por la mañana means in the morning.'],
+  [8,
+    [['I can','puedo'],['I cannot','no puedo'],['I need','necesito'],['I have to','tengo que'],['to go','ir'],['to speak','hablar'],['to pay','pagar'],['Can you help me?','¿Puede ayudarme?']],
+    [['Can you help me?','¿Puede ayudarme?'],['Yes.','Sí.'],['I need to go to the hotel.','Necesito ir al hotel.'],['The hotel is to the right.','El hotel está a la derecha.'],['I cannot speak Spanish.','No puedo hablar español.'],['I speak a little English.','Hablo un poco de inglés.']],
+    [['I have to pay.','Tengo que pagar.'],['I can go tomorrow.','Puedo ir mañana.'],['I need water.','Necesito agua.']],
+    'After puedo, necesito, and tengo que, use the unchanged verb form: puedo ir, necesito pagar.'],
+  [9,
+    [['this one','este'],['that one','ese'],['How much is this?','¿Cuánto cuesta esto?'],['It is too expensive','es demasiado caro'],['I will take it','me lo llevo'],['a smaller size','una talla más pequeña'],['a larger size','una talla más grande'],['Do you have another one?','¿Tiene otro?']],
+    [['How much is this?','¿Cuánto cuesta esto?'],['Twenty pesos.','Veinte pesos.'],['It is too expensive. Do you have another one?','Es demasiado caro. ¿Tiene otro?'],['Yes. This one.','Sí. Este.'],['I will take it, thank you.','Me lo llevo, gracias.'],['Thank you.','Gracias.']],
+    [['Do you have a smaller size?','¿Tiene una talla más pequeña?'],['Do you have a larger size?','¿Tiene una talla más grande?'],['This one, please.','Este, por favor.']],
+    'Me lo llevo is a natural way to say you will buy something. Talla refers to clothing size.'],
+  [10,
+    [['I have','tengo'],['my family','mi familia'],['my wife','mi esposa'],['my husband','mi esposo'],['my daughter','mi hija'],['my son','mi hijo'],['my mother','mi madre'],['my father','mi padre']],
+    [['My name is Alex. And you?','Me llamo Alex. ¿Y usted?'],['My name is Ana.','Me llamo Ana.'],['My family is from Mexico.','Mi familia es de México.'],['Nice to meet you.','Mucho gusto.'],['I have a son and a daughter.','Tengo un hijo y una hija.'],['I have a son.','Tengo un hijo.']],
+    [['My wife is from Mexico.','Mi esposa es de México.'],['My father speaks English.','Mi padre habla inglés.'],['My mother speaks a little Spanish.','Mi madre habla un poco de español.']],
+    'The h in hijo and hija is silent. Mi means my and stays the same before masculine and feminine nouns.'],
+  [11,
+    [['a ticket','un boleto'],['the bus','el autobús'],['the train','el tren'],['a taxi','un taxi'],['When does it leave?','¿Cuándo sale?'],['I am going to','voy a'],['the airport','el aeropuerto'],['for today','para hoy']],
+    [['A ticket for today, please.','Un boleto para hoy, por favor.'],['For the train?','¿Para el tren?'],['Yes. When does it leave?','Sí. ¿Cuándo sale?'],['At two o’clock.','A las dos.'],['I am going to the airport.','Voy al aeropuerto.'],['The train goes to the airport.','El tren va al aeropuerto.']],
+    [['I need a taxi.','Necesito un taxi.'],['I am going to the hotel.','Voy al hotel.'],['Two tickets for the bus, please.','Dos boletos para el autobús, por favor.']],
+    'A and el join to form al: voy al hotel. Boleto is commonly used for a ticket in Mexico.'],
+  [12,
+    [['I have a reservation','tengo una reservación'],['a room','una habitación'],['for one night','por una noche'],['the key','la llave'],['breakfast','el desayuno'],['the Wi-Fi password','la contraseña del wifi'],['Is it included?','¿Está incluido?'],['at what time','a qué hora']],
+    [['Hello. I have a reservation.','Hola. Tengo una reservación.'],['A room for one night?','¿Una habitación por una noche?'],['Yes. Is breakfast included?','Sí. ¿Está incluido el desayuno?'],['Yes.','Sí.'],['The key, please.','La llave, por favor.'],['Here you are.','Aquí tiene.']],
+    [['What is the Wi-Fi password?','¿Cuál es la contraseña del wifi?'],['At what time is breakfast?','¿A qué hora es el desayuno?'],['I would like a room for one night.','Quisiera una habitación por una noche.']],
+    'The double l in llave is often pronounced like an English y. Pronunciation varies by region.'],
+  [13,
+    [['yesterday','ayer'],['I went','fui'],['I ate','comí'],['I saw','vi'],['I bought','compré'],['I drank','tomé'],['at the restaurant','en el restaurante'],['a book','un libro']],
+    [['Yesterday I went to the restaurant.','Ayer fui al restaurante.'],['Did you eat chicken?','¿Comió pollo?'],['Yes. I ate chicken and rice.','Sí. Comí pollo y arroz.'],['And coffee?','¿Y café?'],['I drank coffee.','Tomé café.'],['I drank water.','Tomé agua.']],
+    [['Yesterday I bought a book.','Ayer compré un libro.'],['I saw the hotel.','Vi el hotel.'],['Yesterday I went to the station.','Ayer fui a la estación.']],
+    'Stress the final syllable in comí, compré, and tomé. The accent marks distinguish these past-tense forms.'],
+  [14,
+    [['How are you?','¿Cómo está?'],['I am well','estoy bien'],['It is hot','hace calor'],['It is cold','hace frío'],['It is raining','está lloviendo'],['It is a nice day','hace buen tiempo'],['and you','y usted'],['very well','muy bien']],
+    [['Hello. How are you?','Hola. ¿Cómo está?'],['Very well. And you?','Muy bien. ¿Y usted?'],['I am well, thank you.','Estoy bien, gracias.'],['It is hot today.','Hace calor hoy.'],['Yes. It is a nice day.','Sí. Hace buen tiempo.'],['It is cold in the morning.','Hace frío por la mañana.']],
+    [['It is cold today.','Hace frío hoy.'],['It is raining. I need a taxi.','Está lloviendo. Necesito un taxi.'],['I am very well.','Estoy muy bien.']],
+    'Spanish uses hace for heat and cold: hace calor, hace frío. It uses está lloviendo for ongoing rain.'],
+  [15,
+    [['What do you do for work?','¿A qué se dedica?'],['I work','trabajo'],['in an office','en una oficina'],['I am a teacher','soy docente'],['my colleague','mi colega'],['I am busy','tengo mucho trabajo'],['every day','todos los días'],['I work here','trabajo aquí']],
+    [['What do you do for work?','¿A qué se dedica?'],['I am a teacher. And you?','Soy docente. ¿Y usted?'],['I work in an office.','Trabajo en una oficina.'],['Do you work here?','¿Trabaja aquí?'],['Yes. I work here every day.','Sí. Trabajo aquí todos los días.'],['I have a lot of work today.','Tengo mucho trabajo hoy.']],
+    [['My colleague speaks English.','Mi colega habla inglés.'],['I have to work tomorrow.','Tengo que trabajar mañana.'],['I work in an office every day.','Trabajo en una oficina todos los días.']],
+    'Docente can describe a teacher of any gender. To say you are busy, tengo mucho trabajo avoids gendered adjectives.'],
+  [16,
+    [['Would you like to…?','¿Le gustaría…?'],['Let us go','vamos'],['this evening','esta tarde'],['together','juntos'],['Where shall we meet?','¿Dónde nos vemos?'],['at the café','en el café'],['at six o’clock','a las seis'],['That sounds good','me parece bien']],
+    [['Would you like to eat together?','¿Le gustaría comer juntos?'],['Yes. That sounds good.','Sí. Me parece bien.'],['This evening at six o’clock?','¿Esta tarde a las seis?'],['Yes. Where shall we meet?','Sí. ¿Dónde nos vemos?'],['At the café.','En el café.'],['That sounds good.','Me parece bien.']],
+    [['Let us go to the restaurant.','Vamos al restaurante.'],['Would you like to go to the café?','¿Le gustaría ir al café?'],['Tomorrow at six o’clock.','Mañana a las seis.']],
+    'Le gustaría is a polite invitation. Juntos describes a mixed or male group; an all-female group uses juntas.'],
+  [17,
+    [['eleven','once'],['twelve','doce'],['fifteen','quince'],['thirty','treinta'],['forty','cuarenta'],['fifty','cincuenta'],['one hundred','cien'],['How old are you?','¿Cuántos años tiene?'],['I am thirty years old','tengo treinta años']],
+    [['How old are you?','¿Cuántos años tiene?'],['I am thirty years old. And you?','Tengo treinta años. ¿Y usted?'],['I am forty years old.','Tengo cuarenta años.'],['How much does it cost?','¿Cuánto cuesta?'],['Fifty pesos.','Cincuenta pesos.'],['I will take it.','Me lo llevo.']],
+    [['Twelve tickets, please.','Doce boletos, por favor.'],['Fifteen pesos.','Quince pesos.'],['One hundred pesos.','Cien pesos.']],
+    'Spanish uses tener for age: tengo treinta años, literally I have thirty years.'],
+  [18,
+    [['I do not feel well','no me siento bien'],['It hurts here','me duele aquí'],['the pharmacy','la farmacia'],['a doctor','un médico'],['medicine','medicina'],['my head hurts','me duele la cabeza'],['I need help','necesito ayuda'],['Is there…?','¿Hay…?']],
+    [['I do not feel well.','No me siento bien.'],['Do you need help?','¿Necesita ayuda?'],['Yes. My head hurts.','Sí. Me duele la cabeza.'],['There is a pharmacy to the right.','Hay una farmacia a la derecha.'],['Where is the pharmacy?','¿Dónde está la farmacia?'],['Straight ahead, then to the right.','Todo recto, luego a la derecha.']],
+    [['I need a doctor.','Necesito un médico.'],['Is there a pharmacy?','¿Hay una farmacia?'],['I need medicine.','Necesito medicina.']],
+    'Me duele la cabeza is a useful symptom phrase. Me duele aquí lets you point to where something hurts.'],
+  [19,
+    [['big','grande'],['small','pequeño'],['new','nuevo'],['old','viejo'],['good','bueno'],['bad','malo'],['red','rojo'],['blue','azul']],
+    [['Do you have a small room?','¿Tiene una habitación pequeña?'],['Yes. A new room.','Sí. Una habitación nueva.'],['Is the hotel big?','¿El hotel es grande?'],['No. It is small.','No. Es pequeño.'],['I would like a red book.','Quisiera un libro rojo.'],['Here you are. A blue book and a red book.','Aquí tiene. Un libro azul y un libro rojo.']],
+    [['The book is good.','El libro es bueno.'],['The room is old.','La habitación es vieja.'],['The café is bad.','El café es malo.']],
+    'Many adjectives ending in o change to a with feminine nouns: pequeño, pequeña. Azul and grande stay unchanged.'],
+  [20,
+    [['next week','la próxima semana'],['I am going to travel','voy a viajar'],['I am going to stay','voy a quedarme'],['for three days','por tres días'],['on Friday','el viernes'],['next month','el próximo mes'],['I am going to visit','voy a visitar'],['a friend','una amiga']],
+    [['I am going to travel next week.','Voy a viajar la próxima semana.'],['Are you going to Mexico?','¿Va a México?'],['Yes. I am going to visit a friend.','Sí. Voy a visitar a una amiga.'],['For three days?','¿Por tres días?'],['Yes. I am going to stay for three days.','Sí. Voy a quedarme por tres días.'],['That sounds good.','Me parece bien.']],
+    [['I am going to travel on Friday.','Voy a viajar el viernes.'],['I am going to visit my family next month.','Voy a visitar a mi familia el próximo mes.'],['I am going to stay at the hotel.','Voy a quedarme en el hotel.']],
+    'Voy a plus an unchanged verb describes a plan. Use a before a specific person: visitar a una amiga.'],
+  [21,
+    [['I like','me gusta'],['I do not like','no me gusta'],['I love','me encanta'],['my favorite','mi favorito'],['music','la música'],['to read','leer'],['to swim','nadar'],['What do you like?','¿Qué le gusta?']],
+    [['What do you like?','¿Qué le gusta?'],['I like music. And you?','Me gusta la música. ¿Y usted?'],['I love reading.','Me encanta leer.'],['Do you like swimming?','¿Le gusta nadar?'],['Yes. I like swimming.','Sí. Me gusta nadar.'],['I do not like swimming.','No me gusta nadar.']],
+    [['I love coffee.','Me encanta el café.'],['I like reading in the morning.','Me gusta leer por la mañana.'],['The red book is my favorite.','El libro rojo es mi favorito.']],
+    'Me gusta is followed by the thing or activity you enjoy. With plural things, use me gustan.'],
+  [22,
+    [['come in','pase'],['have a seat','siéntese'],['Would you like something to drink?','¿Quiere algo de tomar?'],['thank you for inviting me','gracias por invitarme'],['your home','su casa'],['It is very nice','es muy bonita'],['a glass of water','un vaso de agua'],['with pleasure','con mucho gusto']],
+    [['Hello. Thank you for inviting me.','Hola. Gracias por invitarme.'],['Come in. Have a seat.','Pase. Siéntese.'],['Your home is very nice.','Su casa es muy bonita.'],['Thank you. Would you like something to drink?','Gracias. ¿Quiere algo de tomar?'],['A glass of water, please.','Un vaso de agua, por favor.'],['With pleasure.','Con mucho gusto.']],
+    [['I would like a coffee, please.','Quisiera un café, por favor.'],['Have a seat, please.','Siéntese, por favor.'],['Thank you for inviting me to your home.','Gracias por invitarme a su casa.']],
+    'Pase and siéntese are polite invitations addressed to usted. Algo de tomar is common in Mexico for something to drink.'],
+  [23,
+    [['Who is calling?','¿Quién habla?'],['Can I speak with Ana?','¿Puedo hablar con Ana?'],['Ana is not here','Ana no está'],['I will call later','llamo más tarde'],['a message','un mensaje'],['Can I leave a message?','¿Puedo dejar un mensaje?'],['my phone number','mi número de teléfono'],['one moment','un momento']],
+    [['Hello. Can I speak with Ana?','Hola. ¿Puedo hablar con Ana?'],['Who is calling?','¿Quién habla?'],['My name is Alex.','Me llamo Alex.'],['One moment. Ana is not here.','Un momento. Ana no está.'],['Can I leave a message?','¿Puedo dejar un mensaje?'],['Yes, with pleasure.','Sí, con mucho gusto.']],
+    [['I will call later, thank you.','Llamo más tarde, gracias.'],['Can I leave a message for Ana?','¿Puedo dejar un mensaje para Ana?'],['A message for Ana.','Un mensaje para Ana.']],
+    'On the telephone, quién habla asks who is speaking. Hablar con means to speak with someone.'],
+  [24,
+    [['I lost my bag','perdí mi bolsa'],['It does not work','no funciona'],['my phone','mi teléfono'],['I need to call','necesito llamar'],['the police','la policía'],['It is an emergency','es una emergencia'],['Where can I…?','¿Dónde puedo…?'],['my passport','mi pasaporte']],
+    [['Can you help me? I lost my bag.','¿Puede ayudarme? Perdí mi bolsa.'],['Do you need to call the police?','¿Necesita llamar a la policía?'],['Yes. My phone does not work.','Sí. Mi teléfono no funciona.'],['You can call here.','Puede llamar aquí.'],['I lost my passport.','Perdí mi pasaporte.'],['There is a police station to the right.','Hay una estación de policía a la derecha.']],
+    [['It is an emergency. I need help.','Es una emergencia. Necesito ayuda.'],['Where can I call?','¿Dónde puedo llamar?'],['My phone does not work. Can you help me?','Mi teléfono no funciona. ¿Puede ayudarme?']],
+    'Perdí describes something you lost. No funciona describes something that is not working.'],
+  [25,
+    [['on weekends','los fines de semana'],['often','a menudo'],['sometimes','a veces'],['never','nunca'],['How often?','¿Con qué frecuencia?'],['I play soccer','juego al fútbol'],['I listen to music','escucho música'],['I read books','leo libros']],
+    [['What do you like to do on weekends?','¿Qué le gusta hacer los fines de semana?'],['I like reading books. And you?','Me gusta leer libros. ¿Y usted?'],['I play soccer.','Juego al fútbol.'],['How often?','¿Con qué frecuencia?'],['Often. Sometimes I listen to music.','A menudo. A veces escucho música.'],['I never play soccer.','Nunca juego al fútbol.']],
+    [['I read books on weekends.','Leo libros los fines de semana.'],['Sometimes I go to the café.','A veces voy al café.'],['I listen to music every day.','Escucho música todos los días.']],
+    'Nunca before a verb makes the sentence negative without adding no: nunca juego.'],
+  [26,
+    [['more than','más que'],['less than','menos que'],['better','mejor'],['worse','peor'],['the biggest','el más grande'],['cheaper','más barato'],['Which do you prefer?','¿Cuál prefiere?'],['I prefer','prefiero']],
+    [['Which do you prefer?','¿Cuál prefiere?'],['I prefer the small hotel.','Prefiero el hotel pequeño.'],['Is it cheaper?','¿Es más barato?'],['Yes. And it is better.','Sí. Y es mejor.'],['I prefer coffee to water.','Prefiero el café al agua.'],['I prefer water.','Prefiero el agua.']],
+    [['This book is better than that one.','Este libro es mejor que ese.'],['The big hotel is worse.','El hotel grande es peor.'],['I need less than one hundred pesos.','Necesito menos de cien pesos.']],
+    'Mejor and peor already mean better and worse; do not add más. Use que when directly comparing two things.'],
+  [27,
+    [['I stayed','me quedé'],['I visited','visité'],['It was very nice','fue muy bonito'],['last week','la semana pasada'],['for two nights','por dos noches'],['afterward','después'],['I returned','regresé'],['a museum','un museo']],
+    [['Last week I went to Mexico.','La semana pasada fui a México.'],['Did you stay in a hotel?','¿Se quedó en un hotel?'],['Yes. I stayed for two nights.','Sí. Me quedé por dos noches.'],['Did you visit a museum?','¿Visitó un museo?'],['Yes. Afterward I returned to the hotel.','Sí. Después regresé al hotel.'],['That sounds good.','Me parece bien.']],
+    [['I visited a museum. It was very nice.','Visité un museo. Fue muy bonito.'],['Last week I ate at the restaurant.','La semana pasada comí en el restaurante.'],['Afterward I drank a coffee.','Después tomé un café.']],
+    'Use the finished past for a trip story: fui, visité, regresé. The ending é carries the stress in visité and regresé.'],
+  [28,
+    [['I think that','creo que'],['I agree','estoy de acuerdo'],['I do not agree','no estoy de acuerdo'],['because','porque'],['in my opinion','en mi opinión'],['What do you think?','¿Qué piensa?'],['It is interesting','es interesante'],['It is important','es importante']],
+    [['I think the book is interesting.','Creo que el libro es interesante.'],['I agree.','Estoy de acuerdo.'],['What do you think of the hotel?','¿Qué piensa del hotel?'],['In my opinion, it is very good.','En mi opinión, es muy bueno.'],['I do not agree because it is too expensive.','No estoy de acuerdo porque es demasiado caro.'],['I prefer the small hotel.','Prefiero el hotel pequeño.']],
+    [['I think it is important.','Creo que es importante.'],['I like the café because it is good.','Me gusta el café porque es bueno.'],['In my opinion, the museum is interesting.','En mi opinión, el museo es interesante.']],
+    'Porque gives a reason. Por qué, written as two words with an accent, asks why.'],
+  [29,
+    [['Could you…?','¿Podría…?'],['repeat that','repetir eso'],['Would you mind…?','¿Le importaría…?'],['excuse me for a moment','disculpe un momento'],['May I come in?','¿Puedo pasar?'],['with your permission','con permiso'],['Of course','por supuesto'],['to speak more slowly','hablar más despacio']],
+    [['Excuse me for a moment. May I come in?','Disculpe un momento. ¿Puedo pasar?'],['Of course. Come in.','Por supuesto. Pase.'],['Could you repeat that?','¿Podría repetir eso?'],['Yes, with pleasure.','Sí, con mucho gusto.'],['Would you mind speaking more slowly?','¿Le importaría hablar más despacio?'],['Of course.','Por supuesto.']],
+    [['Could you help me?','¿Podría ayudarme?'],['With your permission. Thank you.','Con permiso. Gracias.'],['Could you speak more slowly?','¿Podría hablar más despacio?']],
+    'Podría and le importaría soften a request. Use usted forms with strangers until invited to speak informally.'],
+  [30,
+    [['first','primero'],['then','luego'],['finally','por último'],['everything','todo'],['I can start now','ya puedo empezar'],['one more time','una vez más'],['See you tomorrow','hasta mañana'],['Have a good trip','buen viaje']],
+    [['Hello. I have a reservation for two nights.','Hola. Tengo una reservación por dos noches.'],['Of course. Here is the key.','Por supuesto. Aquí tiene la llave.'],['First I am going to visit the museum. Where is it?','Primero voy a visitar el museo. ¿Dónde está?'],['Straight ahead, then to the right.','Todo recto, luego a la derecha.'],['Thank you. Tomorrow I am going to the airport.','Gracias. Mañana voy al aeropuerto.'],['Have a good trip. See you tomorrow.','Buen viaje. Hasta mañana.']],
+    [['Could you repeat that one more time?','¿Podría repetir eso una vez más?'],['Finally, I returned to the hotel.','Por último, regresé al hotel.'],['I can start now. Thank you for everything.','Ya puedo empezar. Gracias por todo.']],
+    'Use primero, luego, and por último to link a short story. Keep answering before the speaker and revisit difficult lessons.']
+];
+for (const [id, words, conversation, combinations, tip] of ES_DRAFTS) COURSE['es-MX'][id] = spanishCourseLesson(id, words, conversation, combinations, tip);
+
 'use strict';
 /* ================= Parley: audio-first spaced-recall trainer ================= */
 const SPEED = window.__parleySpeed || 1;            // test hook: compresses waits
@@ -504,60 +647,50 @@ function loadLocal() {
 function saveMeta() {
   S.updatedAt = Date.now();
   LS.set('parley.v1', { settings: S.settings, lang: S.lang, custom: S.custom, progress: S.progress, updatedAt: S.updatedAt });
-  Cloud.put('settings', { settings: S.settings, lang: S.lang, custom: S.custom, updatedAt: S.updatedAt });
 }
 function prog(code) {
   if (!S.progress[code]) S.progress[code] = { done: {}, items: {}, updatedAt: 0 };
   return S.progress[code];
 }
-function saveProg(code) { const P = prog(code); P.updatedAt = Date.now(); saveMeta(); Cloud.put('p_' + code, P); }
+function saveProg(code) { const P = prog(code); P.updatedAt = Date.now(); saveMeta();  }
 function saveLesson(code, id, L) {
   (S.lessons[code] = S.lessons[code] || {})[id] = L;
   LS.set('parley.v1.lessons', S.lessons);
-  Cloud.put('l_' + code + '_' + id, L);
 }
-function getLesson(code, id) { return COURSE[code]?.[id] || S.lessons[code]?.[id] || (String(id) === '1' ? BUILTIN[code] : null) || null; }
+function getLesson(code, id) { return Backend.lessons[code]?.[id] || COURSE[code]?.[id] || S.lessons[code]?.[id] || (String(id) === '1' ? BUILTIN[code] : null) || null; }
 function langInfo(code) {
   return LANGS.find(l => l.code === code) || S.custom.find(l => l.code === code) || { code, name: code, native: '' };
 }
 const cur = () => langInfo(S.lang);
 
-/* ---------- cloud: per-person progress via db, lesson writing via sample ---------- */
-const Cloud = {
-  col: null, queues: {}, sample: undefined,
-  async init() {
-    if (!window.claude?.use) { this.sample = null; renderHome(); return; }
-    claude.use('sample').then(s => { this.sample = s; renderHome(); }).catch(() => { this.sample = null; });
-    try {
-      const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
-      if (!db || !user) return;
-      const uid = await user.id(); if (!uid) return;
-      this.col = db.collection('data/users/' + uid);
-      const snap = await Promise.race([this.col.get(), sleep(10000).then(() => null)]);
-      if (!snap) return;
-      let changed = false;
-      for (const d of snap.docs) {
-        const v = d.data(); if (!v) continue;
-        if (d.id === 'settings') {
-          if ((v.updatedAt || 0) > (S.updatedAt || 0)) { S.settings = { ...DEFAULTS, ...v.settings }; S.lang = v.lang || S.lang; S.custom = v.custom || []; changed = true; }
-        } else if (d.id.startsWith('p_')) {
-          const code = d.id.slice(2);
-          if ((v.updatedAt || 0) > (S.progress[code]?.updatedAt || 0)) { S.progress[code] = v; changed = true; }
-        } else if (d.id.startsWith('l_')) {
-          const m = d.id.match(/^l_(.+)_([^_]+)$/); if (!m) continue;
-          if (!S.lessons[m[1]]?.[m[2]]) { (S.lessons[m[1]] = S.lessons[m[1]] || {})[m[2]] = v; changed = true; }
-        }
-      }
-      if (changed) { LS.set('parley.v1.lessons', S.lessons); LS.set('parley.v1', { settings: S.settings, lang: S.lang, custom: S.custom, progress: S.progress, updatedAt: S.updatedAt }); renderHome(); }
-    } catch (e) { console.warn('db unavailable', e); this.col = null; }
+/* ---------- standalone service ---------- */
+const Backend = {
+  available: false, configured: false, admin: false, lessons: {}, manifest: [],
+  async request(path, data, signal) {
+    const res = await fetch(path, { credentials: 'same-origin', signal,
+      ...(data !== undefined ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) } : {}) });
+    let result;
+    try { result = await res.json(); } catch { throw new Error('The Parley service did not return a valid response.'); }
+    if (!res.ok) throw new Error(result.error || 'The Parley service could not complete this request.');
+    return result;
   },
-  put(id, data) {
-    if (!this.col) return;
-    const safe = id.replace(/[^A-Za-z0-9_\-.~:@+]/g, '-');
-    const body = JSON.parse(JSON.stringify(data));
-    this.queues[safe] = (this.queues[safe] || Promise.resolve())
-      .then(() => this.col && this.col.doc(safe).set(body))
-      .catch(e => { if (e && (e.code === 'invalid_argument' || e.code === 'revoked')) this.col = null; console.warn('save failed', e); });
+  async loadLanguage(code) {
+    if (!this.available || !LANGS.some(l => l.code === code)) return;
+    try {
+      const result = await this.request('/api/courses/' + encodeURIComponent(code));
+      if (S.lang !== code) return;
+      this.lessons = { [code]: result.lessons || {} }; renderHome();
+    } catch (e) { renderHome(null, { genError: e.message }); }
+  },
+  async init() {
+    if (!/^https?:$/.test(location.protocol)) return;
+    try {
+      const status = await this.request('/api/status', undefined, AbortSignal.timeout(5000));
+      this.available = status.standalone === true; this.configured = status.generationConfigured; this.admin = status.admin;
+      if (!this.available) return;
+      await this.loadLanguage(S.lang);
+      const catalog = await this.request('/api/catalog'); this.manifest = catalog.languages || []; renderHome();
+    } catch { this.available = false; renderHome(); }
   }
 };
 
@@ -1062,40 +1195,7 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'r') $('#bReplay').click();
 });
 
-/* ---------- lesson writing (Claude) ---------- */
-function genPrompt(code, id, topic) {
-  const L = langInfo(code); const n = /^\d+$/.test(id) ? +id : null;
-  const th = topic ? { title: topic, goal: 'handle this situation: ' + topic, grammar: 'only what this situation needs, kept simple' } : theme(n);
-  const P = prog(code);
-  const known = Object.values(P.items).filter(i => i.kind === 'item').slice(-220).map(i => `${i.t} = ${i.en}`).join('\n');
-  const g = S.settings.gender;
-  const genderRule = g === 'neutral'
-    ? 'Where the language marks the speaker\'s gender, prefer phrasings that avoid it; if unavoidable, use the masculine form in "t" and give the feminine form in "note".'
-    : `The learner is ${g === 'male' ? 'a man' : 'a woman'}: use forms that agree with that.`;
-  return `You are writing ${topic ? 'a custom lesson' : 'lesson ' + n + ' of 30'} of an audio-first, spaced-recall course that teaches ${L.name}${L.native ? ' (' + L.native + ')' : ''} to an English speaker. Locale/TTS code: ${code}.
-The learner hears an English cue, says the ${L.name} aloud during a pause, then hears a native voice give the answer. Everything you write will be spoken by a text-to-speech engine.
-
-Lesson theme: ${th.title}
-Can-do goal: ${th.goal}
-Grammar focus: ${th.grammar}
-
-${known ? 'The learner already knows these items. Do NOT teach them again as new items, but reuse several of them in the drills and the dialogue:\n' + known : 'This is the learner\'s first contact with the language.'}
-
-Write:
-- "title": a short English title (2–5 words).
-- "dialogue": 6–9 short lines between "A" (the learner's role) and "B". Natural everyday speech that uses only this lesson's new items plus known items.
-- "items": 9–12 NEW items (single words or short fixed chunks), ordered so each builds on the ones before; most useful, highest-frequency forms first.
-- "drills": 8–11 short sentences the learner can build from new + known items alone (no unseen words), each with an English cue.
-- "tips": 1–3 spoken tips in English (pronunciation, politeness or grammar), each under 25 words.
-
-Rules for every item: "t" = the ${L.name} in its standard native script; "r" = romanization ONLY if ${L.name} is not normally written in Latin script (Pinyin with tone marks for Mandarin, Jyutping for Cantonese, Hepburn for Japanese, Revised Romanization for Korean, a standard transliteration otherwise), else ""; "en" = a short English cue (e.g. "please", "I would like"); "build" = backward build-up chunks: for items of 3+ syllables or several words, 2–4 progressively longer pronounceable tails taken from the END of the item, the last chunk equal to "t" (e.g. Spanish "por favor" -> ["favor","por favor"]); [] for short items. Each chunk must be read correctly by a TTS engine exactly as written (in Japanese, never cut where a particle's reading would change). "note" = optional usage note under 20 words, else "".
-Drills and dialogue lines have "t", "r" and "en" with the same conventions.
-Register: polite and neutral, as a visitor would speak with strangers, unless the theme is about friends or family. ${genderRule}
-Accuracy matters more than variety: use only forms you are certain are correct and natural; prefer a simpler phrase over a doubtful one. Use the standard written form (for languages with several standards, the one matching ${code}).
-
-Reply with ONLY this JSON object, no commentary:
-{"title":"","dialogue":[{"s":"A","t":"","r":"","en":""}],"items":[{"t":"","r":"","en":"","build":[],"note":""}],"drills":[{"t":"","r":"","en":""}],"tips":[""]}`;
-}
+/* ---------- standalone lesson generation ---------- */
 function normLesson(raw, title) {
   const str = v => (typeof v === 'string' ? v.trim() : '');
   const arr = v => (Array.isArray(v) ? v : []);
@@ -1113,32 +1213,23 @@ function normLesson(raw, title) {
 }
 let GEN = null;
 async function generateLesson(code, id, topic) {
-  const sample = Cloud.sample;
-  if (!sample) throw { code: 'not_granted' };
-  GEN = { code, id, ctl: new AbortController(), chars: 0, err: '' };
-  renderHome();
+  if (GEN) return;
+  if (!Backend.available) { renderHome(null, { genError: 'Open Parley through its standalone server to prepare lessons. Included lessons and your own practice work offline.' }); return; }
+  if (!Backend.admin) { openCourseStudio(); return; }
+  GEN = { code, id, ctl: new AbortController(), chars: 0 }; renderHome();
   try {
-    const raw = await sample.json(genPrompt(code, id, topic), { modelTier: 'default', signal: GEN.ctl.signal,
-      onText: ({ text }) => { if (GEN) { GEN.chars = text.length; const m = $('#genMeter'); if (m) m.style.width = Math.min(96, text.length / 45) + '%'; const c = $('#genChars'); if (c) c.textContent = text.length.toLocaleString() + ' characters written'; } } });
-    const L = normLesson(raw, topic);
-    if (topic) L.topic = topic;
-    saveLesson(code, id, L);
-    GEN = null;
-    renderHome(null, { readyId: id });
-  } catch (e) {
-    const msg = { cancelled: '', not_granted: 'Claude access was declined for this page, so new lessons can’t be written here.', rate_limited: 'You’ve hit a usage limit. Try again in a little while.',
-      invalid_json: 'The lesson came back malformed. Try again.', bad_lesson: 'The lesson came back incomplete. Try again.', refused: 'Claude declined to write this lesson. Try a different topic.',
-      session_expired: 'Sign in to Claude again, then retry.' }[e?.code] ?? 'Something went wrong writing the lesson. Try again.';
-    GEN = null;
-    renderHome(null, { genError: msg, errId: id });
-    if (e?.code === 'not_granted' || e?.code === 'sampling_disabled') Cloud.sample = null;
-  }
+    const result = await Backend.request('/api/lessons/generate', { code, id: topic ? 1 : Number(id), topic, gender: S.settings.gender }, GEN.ctl.signal);
+    const L = normLesson(result.lesson, topic); L.reviewStatus = 'unreviewed';
+    if (topic) { L.topic = topic; saveLesson(code, id, L); }
+    else { (Backend.lessons[code] = Backend.lessons[code] || {})[id] = L; }
+    GEN = null; renderHome(null, { readyId: id });
+  } catch (e) { GEN = null; renderHome(null, { genError: e.name === 'AbortError' ? 'Request stopped. A numbered lesson may still finish on the server; refresh before retrying.' : e.message }); }
 }
 
 /* ---------- home ---------- */
 function stats(code) {
   const P = prog(code); const now = Date.now(); const items = Object.values(P.items);
-  const next = (() => { for (let n = 1; n < 999; n++) if (!P.done[n]) return n; return 1; })();
+  const next = (() => { for (let n = 1; n <= 30; n++) if (!P.done[n]) return n; return 30; })();
   return { learned: items.length, due: items.filter(i => i.due <= now).length, done: Object.keys(P.done).filter(k => /^\d+$/.test(k)).length, next };
 }
 const GET_VOICES = 'For the clearest audio, download a Premium or Enhanced voice. iPhone: Settings › Accessibility › Spoken Content › Voices, pick the language, tap a voice marked Enhanced or Premium. Android: your phone’s text-to-speech settings. Then reopen this page.';
@@ -1171,7 +1262,6 @@ function lessonState(code, n) {
 function onLessonTap(code, id, topic) {
   if (GEN) return;
   if (getLesson(code, id)) return startSession('lesson', code, id);
-  if (!Cloud.sample) { renderHome(null, { genError: Cloud.sample === undefined ? 'Connecting to Claude… try again in a moment.' : 'Writing new lessons needs this page open in Claude. Lesson 1 is built in for 11 languages.', errId: id }); return; }
   generateLesson(code, id, topic);
 }
 function renderHome(result, flags = {}) {
@@ -1200,11 +1290,10 @@ function renderHome(result, flags = {}) {
   if (GEN && GEN.code === L.code) {
     hero.append(h('div', { class: 'gen' },
       h('div', null, h('b', null, `Writing ${/^c/.test(GEN.id) ? 'your topic lesson' : 'Lesson ' + GEN.id} for ${L.name}…`)),
-      h('div', { class: 'meter' }, h('div', { id: 'genMeter', style: `width:${Math.min(96, GEN.chars / 45)}%` })),
-      h('div', { class: 'muted', id: 'genChars', style: 'font-size:13px' }, GEN.chars ? GEN.chars.toLocaleString() + ' characters written' : 'Claude is planning the lesson. This usually takes 30–90 seconds.'),
-      h('button', { class: 'btn', onclick: () => GEN?.ctl.abort() }, 'Stop')));
+      h('div', { class: 'muted', role: 'status', style: 'font-size:13px' }, 'Your lesson is being prepared. This can take a few minutes.'),
+      h('button', { class: 'btn', onclick: () => GEN?.ctl.abort() }, 'Stop waiting')));
   } else {
-    const label = nextState === 'write' ? `Write Lesson ${st.next} with Claude` : `${P.done[st.next] ? 'Replay' : 'Start'} Lesson ${st.next}`;
+    const label = nextState === 'write' ? `Prepare Lesson ${st.next}` : `${P.done[st.next] ? 'Replay' : 'Start'} Lesson ${st.next}`;
     const sub = nextState === 'write' ? `${nextT} · generated on demand` : `${nextT} · guided audio · go at your pace`;
     const ready = flags.readyId && getLesson(L.code, flags.readyId);
     hero.append(ready
@@ -1218,6 +1307,7 @@ function renderHome(result, flags = {}) {
   hero.append(h('div', { class: 'voice', id: 'voiceLine' }));
   kids.push(hero);
   kids.push(h('section', { class: 'panel' }, h('h2', null, 'Your practice studio'),
+    h('button', { class: 'btn', onclick: openCourseStudio }, 'Course studio'),
     h('div', { class: 'row' },
       h('button', { class: 'btn', onclick: openPhrasebook }, 'Phrasebook'),
       h('button', { class: 'btn', onclick: openLessonBuilder }, 'Create a lesson'))));
@@ -1236,10 +1326,10 @@ function renderHome(result, flags = {}) {
     const title = getLesson(L.code, n)?.title || theme(n).title;
     rows.push(h('li', null, h('button', { onclick: () => onLessonTap(L.code, String(n)), disabled: !!GEN },
       h('span', { class: 'n' }, String(n).padStart(2, '0')), h('span', { class: 't' }, title),
-      h('span', { class: 'pill ' + (s === 'done' ? 'done' : isNext ? 'next' : s === 'ready' ? 'ready' : '') }, s === 'done' ? (P.done[n].acc == null ? 'Completed' : `Done ${P.done[n].acc}%`) : isNext ? 'Next' : s === 'ready' ? 'Ready' : 'Write'))));
+      h('span', { class: 'pill ' + (s === 'done' ? 'done' : isNext ? 'next' : s === 'ready' ? 'ready' : '') }, s === 'done' ? (P.done[n].acc == null ? 'Completed' : `Done ${P.done[n].acc}%`) : isNext ? 'Next' : s === 'ready' ? (getLesson(L.code, n)?.reviewStatus === 'unreviewed' ? 'Draft' : 'Ready') : 'Prepare'))));
   }
   kids.push(h('section', { class: 'panel' }, h('h2', null, 'Course'), h('p', { class: 'muted', style: 'margin:0;font-size:14px' },
-    L.code === 'es-MX' ? 'Five original starter lessons are included, with earlier phrases recycled in later sessions. Follow them in order, ideally one lesson per day. Lessons 6–30 require Claude generation.' : 'Lesson 1 is included for 11 languages. The remaining steps are a course outline and require Claude generation. Follow lessons in order, ideally one per day.'),
+    `${Array.from({ length: 30 }, (_, i) => getLesson(L.code, i + 1)).filter(Boolean).length} of 30 lessons available. Follow the course in order, ideally one lesson per day. Course studio prepares missing lessons and saves them on your Parley server.`),
     h('ul', { class: 'lessons' }, rows)));
 
   const lad = h('div', { class: 'ladder' }); renderLadder(lad, -1);
@@ -1250,7 +1340,7 @@ function renderHome(result, flags = {}) {
       h('div', null, h('span', { class: 'k' }, '03'), h('div', null, h('h3', null, 'Build long words from the end'), h('p', null, 'Longer phrases are taught backwards: “favor”, then “por favor”. Each piece keeps the natural stress and melody of the whole.'))),
       h('div', null, h('span', { class: 'k' }, '04'), h('div', null, h('h3', null, 'A small core, used at once'), h('p', null, 'About a dozen high-frequency phrases per lesson, recombined into new sentences you build yourself, then heard in a real conversation.')))),
     h('div', null, lad, h('div', { class: 'ladder-cap' }, h('span', null, 'in this lesson'), h('span', null, 'future reviews')))));
-  kids.push(h('p', { class: 'muted', style: 'font-size:12px;margin:0' }, 'Audio uses your device’s built-in voices. Lessons written by Claude can contain mistakes, especially in less widely spoken languages; check unusual phrasing with a native speaker. Progress syncs to your Claude account when this page runs inside Claude.'));
+  kids.push(h('p', { class: 'muted', style: 'font-size:12px;margin:0' }, 'Audio uses your device’s voices; availability varies by language. Generated lessons are AI drafts and need language review. Your learning progress is saved in this browser. Course content is stored on your Parley server.'));
   root.replaceChildren(...kids);
   renderVoice();
 }
@@ -1300,11 +1390,11 @@ function openLangs() {
         const l = { code, name: name.charAt(0).toUpperCase() + name.slice(1), native: '' };
         if (!S.custom.some(c => c.code === code)) S.custom.push(l);
         choose(l);
-      } }, h('span', { class: 'nm' }, `Learn “${name}”`), h('span', { class: 'nt' }, 'Claude writes the lessons; text only if no voice'))));
+      } }, h('span', { class: 'nm' }, `Learn “${name}”`), h('span', { class: 'nt' }, 'Custom text practice; course generation supports listed languages'))));
     }
     list.replaceChildren(...items);
   };
-  const choose = l => { S.lang = l.code; saveMeta(); closeSheet(); renderHome(); };
+  const choose = l => { S.lang = l.code; saveMeta(); closeSheet(); renderHome(); Backend.loadLanguage(l.code); };
   q.addEventListener('input', draw);
   sheet('Choose a language', h('div', { class: 'body' }, q, h('div', { class: 'muted', style: 'font-size:12px;display:flex;gap:12px' },
     h('span', null, h('span', { class: 'dot', style: 'display:inline-block;margin:0 4px 0 0' }), 'voice on this device'),
@@ -1342,11 +1432,10 @@ function openSettings(focus) {
   const L = cur();
   const confirmBox = h('div', { class: 'row' });
   const resetBtn = h('button', { class: 'btn danger', onclick: () => {
-    confirmBox.replaceChildren(h('span', { class: 'muted', style: 'flex-basis:100%;font-size:14px' }, `Erase all ${L.name} progress and written lessons?`),
+    confirmBox.replaceChildren(h('span', { class: 'muted', style: 'flex-basis:100%;font-size:14px' }, `Erase this browser's ${L.name} progress and custom lessons? Server courses are kept.`),
       h('button', { class: 'btn', onclick: () => confirmBox.replaceChildren(resetBtn) }, 'Cancel'),
       h('button', { class: 'btn danger', onclick: () => {
         S.progress[L.code] = { done: {}, items: {}, updatedAt: Date.now() };
-        for (const id of Object.keys(S.lessons[L.code] || {})) Cloud.col && Cloud.col.doc(('l_' + L.code + '_' + id).replace(/[^A-Za-z0-9_\-.~:@+]/g, '-')).delete().catch(() => {});
         delete S.lessons[L.code]; LS.set('parley.v1.lessons', S.lessons); saveProg(L.code); closeSheet(); renderHome(); } }, 'Erase'));
   } }, `Reset ${L.name} progress`);
   confirmBox.append(resetBtn);
@@ -1365,7 +1454,7 @@ function openSettings(focus) {
     h('div', { class: 'field' }, h('label', null, 'Opening conversation'), seg('setDlg', s.dlgText, [[false, 'Audio only'], [true, 'Show text']], v => set('dlgText', v)),
       h('div', { class: 'hint' }, 'The first listen is meant to be heard, not read. The closing listen always shows text.')),
     h('div', { class: 'field' }, h('label', null, 'Your forms (for gendered languages)'), seg('setGender', s.gender, [['neutral', 'Neutral'], ['male', 'Male'], ['female', 'Female']], v => set('gender', v)),
-      h('div', { class: 'hint' }, 'Applies to lessons Claude writes from now on.')),
+      h('div', { class: 'hint' }, 'Applies to custom lessons prepared from now on. Numbered courses use neutral forms.')),
     confirmBox));
   if (focus === 'voices') setTimeout(() => $('#voiceSettings select')?.focus(), 80);
 }
@@ -1391,7 +1480,7 @@ function openLessonBuilder() {
     placeholder: 'hello | hola\nthank you | gracias\nplease | por favor' });
   const error = h('div', { class: 'err', role: 'alert' });
   sheet('Create a lesson', h('div', { class: 'body' },
-    h('p', { class: 'muted' }, `Create a ${langInfo(code).name} audio lesson using translations you trust. No Claude connection required.`),
+    h('p', { class: 'muted' }, `Create a ${langInfo(code).name} audio lesson using translations you trust. Works offline.`),
     h('label', { for: 'lessonTitle' }, 'Lesson title'), title,
     h('label', { for: 'lessonPhrases' }, 'Phrases'),
     h('p', { class: 'muted' }, 'One phrase per line: English cue | translation | optional romanization. Add 3–14 phrases.'),
@@ -1438,22 +1527,97 @@ function openTopic() {
   const err = h('div', { class: 'err' });
   const go = () => {
     const t = inp.value.trim(); if (t.length < 3) { err.textContent = 'Describe the situation in a few words.'; return; }
-    if (!Cloud.sample) { err.textContent = 'Writing lessons needs this page open in Claude.'; return; }
+    if (!Backend.available) { err.textContent = 'Open Parley through its standalone server to prepare a topic lesson.'; return; }
     closeSheet(); generateLesson(L.code, 'c' + Date.now().toString(36), t);
   };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
   sheet('Lesson on any topic', h('div', { class: 'body' },
-    h('p', { class: 'muted', style: 'margin:0;font-size:14px' }, `Claude writes a ${L.name} lesson for the situation you describe, using the ${Object.keys(prog(L.code).items).length} phrases you already know.`),
+    h('p', { class: 'muted', style: 'margin:0;font-size:14px' }, `Parley prepares a ${L.name} lesson for the situation you describe, using the ${Object.keys(prog(L.code).items).length} phrases you already know.`),
     inp, err, h('button', { class: 'btn primary', onclick: go }, h('span', null, 'Write this lesson'))));
   setTimeout(() => inp.focus(), 50);
+}
+
+async function openCourseStudio() {
+  const body = h('div', { class: 'body' });
+  sheet('Course studio', body);
+  const error = h('div', { class: 'err', role: 'alert' });
+  const refresh = async () => {
+    if (!body.isConnected) return;
+    body.replaceChildren(h('p', { class: 'muted' }, 'Loading your course library…'));
+    if (!Backend.available) {
+      body.replaceChildren(h('p', null, 'Open Parley through its standalone server to prepare and save full courses. Included lessons and your own phrase lessons work without a server.'));
+      return;
+    }
+    try {
+      const status = await Backend.request('/api/status'); Backend.admin = status.admin; Backend.configured = status.generationConfigured;
+      if (!status.admin) {
+        const token = h('input', { class: 'search', type: 'password', id: 'adminToken', autocomplete: 'off' });
+        body.replaceChildren(h('p', null, 'Administrator access prepares new courses. Learners do not need to sign in to open saved lessons.'),
+          h('label', { for: 'adminToken' }, 'Administrator token'), token, error,
+          h('button', { class: 'btn primary', onclick: async () => {
+            try { await Backend.request('/api/admin/session', { token: token.value }); token.value = ''; refresh(); }
+            catch (e) { error.textContent = e.message; }
+          } }, 'Sign in'));
+        token.focus(); return;
+      }
+      const catalog = await Backend.request('/api/catalog'); Backend.manifest = catalog.languages;
+      const data = await Backend.request('/api/jobs');
+      const available = catalog.languages.reduce((n, l) => n + l.ready, 0);
+      const total = catalog.languages.length * 30;
+      const progress = h('div', { role: 'status' }, `${available.toLocaleString()} / ${total.toLocaleString()} lessons available across ${catalog.languages.length} languages.`);
+      const jobBox = h('div', { class: 'field' });
+      const busy = data.jobs.some(j => ['queued', 'running'].includes(j.status));
+      const postJob = async languages => {
+        try { await Backend.request('/api/jobs', { languages }); await refresh(); }
+        catch (e) { error.textContent = e.message; }
+      };
+      body.replaceChildren(progress,
+        h('p', { class: 'muted' }, 'Each course has 30 sequential lessons. Builds reuse earlier vocabulary, skip saved lessons, and resume after a server restart. Generated translations are drafts awaiting language review.'),
+        status.generationConfigured ? h('p', { class: 'muted' }, 'New lessons use the model account configured on your server.')
+          : h('p', { class: 'err' }, 'Generation is not connected. Configure OPENAI_API_KEY on the server to build missing lessons.'),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', disabled: busy || !status.generationConfigured || !LANGS.some(l => l.code === S.lang), onclick: () => postJob([S.lang]) }, `Build ${cur().name} to Lesson 30`),
+          h('button', { class: 'btn', disabled: busy || !status.generationConfigured, onclick: () => postJob('all') }, `Build all ${catalog.languages.length} courses`)),
+        error, jobBox,
+        h('details', null, h('summary', null, 'Language coverage'), h('ul', { class: 'wordlist' }, catalog.languages.map(l =>
+          h('li', null, h('span', null, l.name), h('span', null, `${l.ready}/30`))))),
+        h('button', { class: 'btn', onclick: async () => { await Backend.loadLanguage(S.lang); refresh(); } }, 'Refresh library'),
+        h('button', { class: 'btn', onclick: async () => { await Backend.request('/api/admin/logout', {}); Backend.admin = false; refresh(); } }, 'Sign out'));
+      const drawJobs = jobs => {
+        jobBox.replaceChildren(...jobs.slice(0, 5).map(job => h('div', { class: 'panel' },
+          h('b', null, `Course build: ${job.status}`),
+          h('div', null, `${job.checked}/${job.total} lessons checked · ${job.generated} newly generated`),
+          job.current ? h('div', null, `${langInfo(job.current.code).name} · Lesson ${job.current.lesson}`) : null,
+          job.error ? h('div', { class: 'err' }, job.error) : null,
+          ['running', 'queued', 'paused', 'failed'].includes(job.status) ? h('button', { class: 'btn', onclick: async () => {
+            const action = ['paused', 'failed'].includes(job.status) ? 'resume' : 'pause';
+            try { await Backend.request(`/api/jobs/${job.id}/${action}`, {}); refresh(); }
+            catch (e) { error.textContent = e.message; }
+          } }, ['paused', 'failed'].includes(job.status) ? 'Resume build' : 'Pause after current lesson') : null)));
+      };
+      drawJobs(data.jobs);
+      const poll = async () => {
+        if (!jobBox.isConnected) return;
+        try {
+          const latest = await Backend.request('/api/jobs');
+          if (!jobBox.isConnected) return;
+          drawJobs(latest.jobs);
+          if (latest.jobs.some(j => ['queued', 'running'].includes(j.status))) setTimeout(poll, 2500);
+          else if (busy) { await Backend.loadLanguage(S.lang); refresh(); }
+        } catch (e) { if (error.isConnected) error.textContent = e.message; }
+      };
+      if (busy) setTimeout(poll, 2500);
+    } catch (e) { body.replaceChildren(h('p', { class: 'err' }, e.message)); }
+  };
+  await refresh();
 }
 
 /* ---------- boot ---------- */
 loadLocal();
 TTS.init();
 renderHome();
-Cloud.init();
-window.__parley = { S, startSession, prog, getLesson, contains, normLesson, genPrompt, get X() { return X; } };
+Backend.init();
+window.__parley = { S, startSession, prog, getLesson, contains, normLesson, Backend, get X() { return X; } };
 
 </script>
 </body>

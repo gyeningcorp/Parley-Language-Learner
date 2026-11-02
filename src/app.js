@@ -50,60 +50,50 @@ function loadLocal() {
 function saveMeta() {
   S.updatedAt = Date.now();
   LS.set('parley.v1', { settings: S.settings, lang: S.lang, custom: S.custom, progress: S.progress, updatedAt: S.updatedAt });
-  Cloud.put('settings', { settings: S.settings, lang: S.lang, custom: S.custom, updatedAt: S.updatedAt });
 }
 function prog(code) {
   if (!S.progress[code]) S.progress[code] = { done: {}, items: {}, updatedAt: 0 };
   return S.progress[code];
 }
-function saveProg(code) { const P = prog(code); P.updatedAt = Date.now(); saveMeta(); Cloud.put('p_' + code, P); }
+function saveProg(code) { const P = prog(code); P.updatedAt = Date.now(); saveMeta();  }
 function saveLesson(code, id, L) {
   (S.lessons[code] = S.lessons[code] || {})[id] = L;
   LS.set('parley.v1.lessons', S.lessons);
-  Cloud.put('l_' + code + '_' + id, L);
 }
-function getLesson(code, id) { return COURSE[code]?.[id] || S.lessons[code]?.[id] || (String(id) === '1' ? BUILTIN[code] : null) || null; }
+function getLesson(code, id) { return Backend.lessons[code]?.[id] || COURSE[code]?.[id] || S.lessons[code]?.[id] || (String(id) === '1' ? BUILTIN[code] : null) || null; }
 function langInfo(code) {
   return LANGS.find(l => l.code === code) || S.custom.find(l => l.code === code) || { code, name: code, native: '' };
 }
 const cur = () => langInfo(S.lang);
 
-/* ---------- cloud: per-person progress via db, lesson writing via sample ---------- */
-const Cloud = {
-  col: null, queues: {}, sample: undefined,
-  async init() {
-    if (!window.claude?.use) { this.sample = null; renderHome(); return; }
-    claude.use('sample').then(s => { this.sample = s; renderHome(); }).catch(() => { this.sample = null; });
-    try {
-      const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
-      if (!db || !user) return;
-      const uid = await user.id(); if (!uid) return;
-      this.col = db.collection('data/users/' + uid);
-      const snap = await Promise.race([this.col.get(), sleep(10000).then(() => null)]);
-      if (!snap) return;
-      let changed = false;
-      for (const d of snap.docs) {
-        const v = d.data(); if (!v) continue;
-        if (d.id === 'settings') {
-          if ((v.updatedAt || 0) > (S.updatedAt || 0)) { S.settings = { ...DEFAULTS, ...v.settings }; S.lang = v.lang || S.lang; S.custom = v.custom || []; changed = true; }
-        } else if (d.id.startsWith('p_')) {
-          const code = d.id.slice(2);
-          if ((v.updatedAt || 0) > (S.progress[code]?.updatedAt || 0)) { S.progress[code] = v; changed = true; }
-        } else if (d.id.startsWith('l_')) {
-          const m = d.id.match(/^l_(.+)_([^_]+)$/); if (!m) continue;
-          if (!S.lessons[m[1]]?.[m[2]]) { (S.lessons[m[1]] = S.lessons[m[1]] || {})[m[2]] = v; changed = true; }
-        }
-      }
-      if (changed) { LS.set('parley.v1.lessons', S.lessons); LS.set('parley.v1', { settings: S.settings, lang: S.lang, custom: S.custom, progress: S.progress, updatedAt: S.updatedAt }); renderHome(); }
-    } catch (e) { console.warn('db unavailable', e); this.col = null; }
+/* ---------- standalone service ---------- */
+const Backend = {
+  available: false, configured: false, admin: false, lessons: {}, manifest: [],
+  async request(path, data, signal) {
+    const res = await fetch(path, { credentials: 'same-origin', signal,
+      ...(data !== undefined ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) } : {}) });
+    let result;
+    try { result = await res.json(); } catch { throw new Error('The Parley service did not return a valid response.'); }
+    if (!res.ok) throw new Error(result.error || 'The Parley service could not complete this request.');
+    return result;
   },
-  put(id, data) {
-    if (!this.col) return;
-    const safe = id.replace(/[^A-Za-z0-9_\-.~:@+]/g, '-');
-    const body = JSON.parse(JSON.stringify(data));
-    this.queues[safe] = (this.queues[safe] || Promise.resolve())
-      .then(() => this.col && this.col.doc(safe).set(body))
-      .catch(e => { if (e && (e.code === 'invalid_argument' || e.code === 'revoked')) this.col = null; console.warn('save failed', e); });
+  async loadLanguage(code) {
+    if (!this.available || !LANGS.some(l => l.code === code)) return;
+    try {
+      const result = await this.request('/api/courses/' + encodeURIComponent(code));
+      if (S.lang !== code) return;
+      this.lessons = { [code]: result.lessons || {} }; renderHome();
+    } catch (e) { renderHome(null, { genError: e.message }); }
+  },
+  async init() {
+    if (!/^https?:$/.test(location.protocol)) return;
+    try {
+      const status = await this.request('/api/status', undefined, AbortSignal.timeout(5000));
+      this.available = status.standalone === true; this.configured = status.generationConfigured; this.admin = status.admin;
+      if (!this.available) return;
+      await this.loadLanguage(S.lang);
+      const catalog = await this.request('/api/catalog'); this.manifest = catalog.languages || []; renderHome();
+    } catch { this.available = false; renderHome(); }
   }
 };
 
@@ -608,40 +598,7 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'r') $('#bReplay').click();
 });
 
-/* ---------- lesson writing (Claude) ---------- */
-function genPrompt(code, id, topic) {
-  const L = langInfo(code); const n = /^\d+$/.test(id) ? +id : null;
-  const th = topic ? { title: topic, goal: 'handle this situation: ' + topic, grammar: 'only what this situation needs, kept simple' } : theme(n);
-  const P = prog(code);
-  const known = Object.values(P.items).filter(i => i.kind === 'item').slice(-220).map(i => `${i.t} = ${i.en}`).join('\n');
-  const g = S.settings.gender;
-  const genderRule = g === 'neutral'
-    ? 'Where the language marks the speaker\'s gender, prefer phrasings that avoid it; if unavoidable, use the masculine form in "t" and give the feminine form in "note".'
-    : `The learner is ${g === 'male' ? 'a man' : 'a woman'}: use forms that agree with that.`;
-  return `You are writing ${topic ? 'a custom lesson' : 'lesson ' + n + ' of 30'} of an audio-first, spaced-recall course that teaches ${L.name}${L.native ? ' (' + L.native + ')' : ''} to an English speaker. Locale/TTS code: ${code}.
-The learner hears an English cue, says the ${L.name} aloud during a pause, then hears a native voice give the answer. Everything you write will be spoken by a text-to-speech engine.
-
-Lesson theme: ${th.title}
-Can-do goal: ${th.goal}
-Grammar focus: ${th.grammar}
-
-${known ? 'The learner already knows these items. Do NOT teach them again as new items, but reuse several of them in the drills and the dialogue:\n' + known : 'This is the learner\'s first contact with the language.'}
-
-Write:
-- "title": a short English title (2–5 words).
-- "dialogue": 6–9 short lines between "A" (the learner's role) and "B". Natural everyday speech that uses only this lesson's new items plus known items.
-- "items": 9–12 NEW items (single words or short fixed chunks), ordered so each builds on the ones before; most useful, highest-frequency forms first.
-- "drills": 8–11 short sentences the learner can build from new + known items alone (no unseen words), each with an English cue.
-- "tips": 1–3 spoken tips in English (pronunciation, politeness or grammar), each under 25 words.
-
-Rules for every item: "t" = the ${L.name} in its standard native script; "r" = romanization ONLY if ${L.name} is not normally written in Latin script (Pinyin with tone marks for Mandarin, Jyutping for Cantonese, Hepburn for Japanese, Revised Romanization for Korean, a standard transliteration otherwise), else ""; "en" = a short English cue (e.g. "please", "I would like"); "build" = backward build-up chunks: for items of 3+ syllables or several words, 2–4 progressively longer pronounceable tails taken from the END of the item, the last chunk equal to "t" (e.g. Spanish "por favor" -> ["favor","por favor"]); [] for short items. Each chunk must be read correctly by a TTS engine exactly as written (in Japanese, never cut where a particle's reading would change). "note" = optional usage note under 20 words, else "".
-Drills and dialogue lines have "t", "r" and "en" with the same conventions.
-Register: polite and neutral, as a visitor would speak with strangers, unless the theme is about friends or family. ${genderRule}
-Accuracy matters more than variety: use only forms you are certain are correct and natural; prefer a simpler phrase over a doubtful one. Use the standard written form (for languages with several standards, the one matching ${code}).
-
-Reply with ONLY this JSON object, no commentary:
-{"title":"","dialogue":[{"s":"A","t":"","r":"","en":""}],"items":[{"t":"","r":"","en":"","build":[],"note":""}],"drills":[{"t":"","r":"","en":""}],"tips":[""]}`;
-}
+/* ---------- standalone lesson generation ---------- */
 function normLesson(raw, title) {
   const str = v => (typeof v === 'string' ? v.trim() : '');
   const arr = v => (Array.isArray(v) ? v : []);
@@ -659,32 +616,23 @@ function normLesson(raw, title) {
 }
 let GEN = null;
 async function generateLesson(code, id, topic) {
-  const sample = Cloud.sample;
-  if (!sample) throw { code: 'not_granted' };
-  GEN = { code, id, ctl: new AbortController(), chars: 0, err: '' };
-  renderHome();
+  if (GEN) return;
+  if (!Backend.available) { renderHome(null, { genError: 'Open Parley through its standalone server to prepare lessons. Included lessons and your own practice work offline.' }); return; }
+  if (!Backend.admin) { openCourseStudio(); return; }
+  GEN = { code, id, ctl: new AbortController(), chars: 0 }; renderHome();
   try {
-    const raw = await sample.json(genPrompt(code, id, topic), { modelTier: 'default', signal: GEN.ctl.signal,
-      onText: ({ text }) => { if (GEN) { GEN.chars = text.length; const m = $('#genMeter'); if (m) m.style.width = Math.min(96, text.length / 45) + '%'; const c = $('#genChars'); if (c) c.textContent = text.length.toLocaleString() + ' characters written'; } } });
-    const L = normLesson(raw, topic);
-    if (topic) L.topic = topic;
-    saveLesson(code, id, L);
-    GEN = null;
-    renderHome(null, { readyId: id });
-  } catch (e) {
-    const msg = { cancelled: '', not_granted: 'Claude access was declined for this page, so new lessons can’t be written here.', rate_limited: 'You’ve hit a usage limit. Try again in a little while.',
-      invalid_json: 'The lesson came back malformed. Try again.', bad_lesson: 'The lesson came back incomplete. Try again.', refused: 'Claude declined to write this lesson. Try a different topic.',
-      session_expired: 'Sign in to Claude again, then retry.' }[e?.code] ?? 'Something went wrong writing the lesson. Try again.';
-    GEN = null;
-    renderHome(null, { genError: msg, errId: id });
-    if (e?.code === 'not_granted' || e?.code === 'sampling_disabled') Cloud.sample = null;
-  }
+    const result = await Backend.request('/api/lessons/generate', { code, id: topic ? 1 : Number(id), topic, gender: S.settings.gender }, GEN.ctl.signal);
+    const L = normLesson(result.lesson, topic); L.reviewStatus = 'unreviewed';
+    if (topic) { L.topic = topic; saveLesson(code, id, L); }
+    else { (Backend.lessons[code] = Backend.lessons[code] || {})[id] = L; }
+    GEN = null; renderHome(null, { readyId: id });
+  } catch (e) { GEN = null; renderHome(null, { genError: e.name === 'AbortError' ? 'Request stopped. A numbered lesson may still finish on the server; refresh before retrying.' : e.message }); }
 }
 
 /* ---------- home ---------- */
 function stats(code) {
   const P = prog(code); const now = Date.now(); const items = Object.values(P.items);
-  const next = (() => { for (let n = 1; n < 999; n++) if (!P.done[n]) return n; return 1; })();
+  const next = (() => { for (let n = 1; n <= 30; n++) if (!P.done[n]) return n; return 30; })();
   return { learned: items.length, due: items.filter(i => i.due <= now).length, done: Object.keys(P.done).filter(k => /^\d+$/.test(k)).length, next };
 }
 const GET_VOICES = 'For the clearest audio, download a Premium or Enhanced voice. iPhone: Settings › Accessibility › Spoken Content › Voices, pick the language, tap a voice marked Enhanced or Premium. Android: your phone’s text-to-speech settings. Then reopen this page.';
@@ -717,7 +665,6 @@ function lessonState(code, n) {
 function onLessonTap(code, id, topic) {
   if (GEN) return;
   if (getLesson(code, id)) return startSession('lesson', code, id);
-  if (!Cloud.sample) { renderHome(null, { genError: Cloud.sample === undefined ? 'Connecting to Claude… try again in a moment.' : 'Writing new lessons needs this page open in Claude. Lesson 1 is built in for 11 languages.', errId: id }); return; }
   generateLesson(code, id, topic);
 }
 function renderHome(result, flags = {}) {
@@ -746,11 +693,10 @@ function renderHome(result, flags = {}) {
   if (GEN && GEN.code === L.code) {
     hero.append(h('div', { class: 'gen' },
       h('div', null, h('b', null, `Writing ${/^c/.test(GEN.id) ? 'your topic lesson' : 'Lesson ' + GEN.id} for ${L.name}…`)),
-      h('div', { class: 'meter' }, h('div', { id: 'genMeter', style: `width:${Math.min(96, GEN.chars / 45)}%` })),
-      h('div', { class: 'muted', id: 'genChars', style: 'font-size:13px' }, GEN.chars ? GEN.chars.toLocaleString() + ' characters written' : 'Claude is planning the lesson. This usually takes 30–90 seconds.'),
-      h('button', { class: 'btn', onclick: () => GEN?.ctl.abort() }, 'Stop')));
+      h('div', { class: 'muted', role: 'status', style: 'font-size:13px' }, 'Your lesson is being prepared. This can take a few minutes.'),
+      h('button', { class: 'btn', onclick: () => GEN?.ctl.abort() }, 'Stop waiting')));
   } else {
-    const label = nextState === 'write' ? `Write Lesson ${st.next} with Claude` : `${P.done[st.next] ? 'Replay' : 'Start'} Lesson ${st.next}`;
+    const label = nextState === 'write' ? `Prepare Lesson ${st.next}` : `${P.done[st.next] ? 'Replay' : 'Start'} Lesson ${st.next}`;
     const sub = nextState === 'write' ? `${nextT} · generated on demand` : `${nextT} · guided audio · go at your pace`;
     const ready = flags.readyId && getLesson(L.code, flags.readyId);
     hero.append(ready
@@ -764,6 +710,7 @@ function renderHome(result, flags = {}) {
   hero.append(h('div', { class: 'voice', id: 'voiceLine' }));
   kids.push(hero);
   kids.push(h('section', { class: 'panel' }, h('h2', null, 'Your practice studio'),
+    h('button', { class: 'btn', onclick: openCourseStudio }, 'Course studio'),
     h('div', { class: 'row' },
       h('button', { class: 'btn', onclick: openPhrasebook }, 'Phrasebook'),
       h('button', { class: 'btn', onclick: openLessonBuilder }, 'Create a lesson'))));
@@ -782,10 +729,10 @@ function renderHome(result, flags = {}) {
     const title = getLesson(L.code, n)?.title || theme(n).title;
     rows.push(h('li', null, h('button', { onclick: () => onLessonTap(L.code, String(n)), disabled: !!GEN },
       h('span', { class: 'n' }, String(n).padStart(2, '0')), h('span', { class: 't' }, title),
-      h('span', { class: 'pill ' + (s === 'done' ? 'done' : isNext ? 'next' : s === 'ready' ? 'ready' : '') }, s === 'done' ? (P.done[n].acc == null ? 'Completed' : `Done ${P.done[n].acc}%`) : isNext ? 'Next' : s === 'ready' ? 'Ready' : 'Write'))));
+      h('span', { class: 'pill ' + (s === 'done' ? 'done' : isNext ? 'next' : s === 'ready' ? 'ready' : '') }, s === 'done' ? (P.done[n].acc == null ? 'Completed' : `Done ${P.done[n].acc}%`) : isNext ? 'Next' : s === 'ready' ? (getLesson(L.code, n)?.reviewStatus === 'unreviewed' ? 'Draft' : 'Ready') : 'Prepare'))));
   }
   kids.push(h('section', { class: 'panel' }, h('h2', null, 'Course'), h('p', { class: 'muted', style: 'margin:0;font-size:14px' },
-    L.code === 'es-MX' ? 'Five original starter lessons are included, with earlier phrases recycled in later sessions. Follow them in order, ideally one lesson per day. Lessons 6–30 require Claude generation.' : 'Lesson 1 is included for 11 languages. The remaining steps are a course outline and require Claude generation. Follow lessons in order, ideally one per day.'),
+    `${Array.from({ length: 30 }, (_, i) => getLesson(L.code, i + 1)).filter(Boolean).length} of 30 lessons available. Follow the course in order, ideally one lesson per day. Course studio prepares missing lessons and saves them on your Parley server.`),
     h('ul', { class: 'lessons' }, rows)));
 
   const lad = h('div', { class: 'ladder' }); renderLadder(lad, -1);
@@ -796,7 +743,7 @@ function renderHome(result, flags = {}) {
       h('div', null, h('span', { class: 'k' }, '03'), h('div', null, h('h3', null, 'Build long words from the end'), h('p', null, 'Longer phrases are taught backwards: “favor”, then “por favor”. Each piece keeps the natural stress and melody of the whole.'))),
       h('div', null, h('span', { class: 'k' }, '04'), h('div', null, h('h3', null, 'A small core, used at once'), h('p', null, 'About a dozen high-frequency phrases per lesson, recombined into new sentences you build yourself, then heard in a real conversation.')))),
     h('div', null, lad, h('div', { class: 'ladder-cap' }, h('span', null, 'in this lesson'), h('span', null, 'future reviews')))));
-  kids.push(h('p', { class: 'muted', style: 'font-size:12px;margin:0' }, 'Audio uses your device’s built-in voices. Lessons written by Claude can contain mistakes, especially in less widely spoken languages; check unusual phrasing with a native speaker. Progress syncs to your Claude account when this page runs inside Claude.'));
+  kids.push(h('p', { class: 'muted', style: 'font-size:12px;margin:0' }, 'Audio uses your device’s voices; availability varies by language. Generated lessons are AI drafts and need language review. Your learning progress is saved in this browser. Course content is stored on your Parley server.'));
   root.replaceChildren(...kids);
   renderVoice();
 }
@@ -846,11 +793,11 @@ function openLangs() {
         const l = { code, name: name.charAt(0).toUpperCase() + name.slice(1), native: '' };
         if (!S.custom.some(c => c.code === code)) S.custom.push(l);
         choose(l);
-      } }, h('span', { class: 'nm' }, `Learn “${name}”`), h('span', { class: 'nt' }, 'Claude writes the lessons; text only if no voice'))));
+      } }, h('span', { class: 'nm' }, `Learn “${name}”`), h('span', { class: 'nt' }, 'Custom text practice; course generation supports listed languages'))));
     }
     list.replaceChildren(...items);
   };
-  const choose = l => { S.lang = l.code; saveMeta(); closeSheet(); renderHome(); };
+  const choose = l => { S.lang = l.code; saveMeta(); closeSheet(); renderHome(); Backend.loadLanguage(l.code); };
   q.addEventListener('input', draw);
   sheet('Choose a language', h('div', { class: 'body' }, q, h('div', { class: 'muted', style: 'font-size:12px;display:flex;gap:12px' },
     h('span', null, h('span', { class: 'dot', style: 'display:inline-block;margin:0 4px 0 0' }), 'voice on this device'),
@@ -888,11 +835,10 @@ function openSettings(focus) {
   const L = cur();
   const confirmBox = h('div', { class: 'row' });
   const resetBtn = h('button', { class: 'btn danger', onclick: () => {
-    confirmBox.replaceChildren(h('span', { class: 'muted', style: 'flex-basis:100%;font-size:14px' }, `Erase all ${L.name} progress and written lessons?`),
+    confirmBox.replaceChildren(h('span', { class: 'muted', style: 'flex-basis:100%;font-size:14px' }, `Erase this browser's ${L.name} progress and custom lessons? Server courses are kept.`),
       h('button', { class: 'btn', onclick: () => confirmBox.replaceChildren(resetBtn) }, 'Cancel'),
       h('button', { class: 'btn danger', onclick: () => {
         S.progress[L.code] = { done: {}, items: {}, updatedAt: Date.now() };
-        for (const id of Object.keys(S.lessons[L.code] || {})) Cloud.col && Cloud.col.doc(('l_' + L.code + '_' + id).replace(/[^A-Za-z0-9_\-.~:@+]/g, '-')).delete().catch(() => {});
         delete S.lessons[L.code]; LS.set('parley.v1.lessons', S.lessons); saveProg(L.code); closeSheet(); renderHome(); } }, 'Erase'));
   } }, `Reset ${L.name} progress`);
   confirmBox.append(resetBtn);
@@ -911,7 +857,7 @@ function openSettings(focus) {
     h('div', { class: 'field' }, h('label', null, 'Opening conversation'), seg('setDlg', s.dlgText, [[false, 'Audio only'], [true, 'Show text']], v => set('dlgText', v)),
       h('div', { class: 'hint' }, 'The first listen is meant to be heard, not read. The closing listen always shows text.')),
     h('div', { class: 'field' }, h('label', null, 'Your forms (for gendered languages)'), seg('setGender', s.gender, [['neutral', 'Neutral'], ['male', 'Male'], ['female', 'Female']], v => set('gender', v)),
-      h('div', { class: 'hint' }, 'Applies to lessons Claude writes from now on.')),
+      h('div', { class: 'hint' }, 'Applies to custom lessons prepared from now on. Numbered courses use neutral forms.')),
     confirmBox));
   if (focus === 'voices') setTimeout(() => $('#voiceSettings select')?.focus(), 80);
 }
@@ -937,7 +883,7 @@ function openLessonBuilder() {
     placeholder: 'hello | hola\nthank you | gracias\nplease | por favor' });
   const error = h('div', { class: 'err', role: 'alert' });
   sheet('Create a lesson', h('div', { class: 'body' },
-    h('p', { class: 'muted' }, `Create a ${langInfo(code).name} audio lesson using translations you trust. No Claude connection required.`),
+    h('p', { class: 'muted' }, `Create a ${langInfo(code).name} audio lesson using translations you trust. Works offline.`),
     h('label', { for: 'lessonTitle' }, 'Lesson title'), title,
     h('label', { for: 'lessonPhrases' }, 'Phrases'),
     h('p', { class: 'muted' }, 'One phrase per line: English cue | translation | optional romanization. Add 3–14 phrases.'),
@@ -984,19 +930,94 @@ function openTopic() {
   const err = h('div', { class: 'err' });
   const go = () => {
     const t = inp.value.trim(); if (t.length < 3) { err.textContent = 'Describe the situation in a few words.'; return; }
-    if (!Cloud.sample) { err.textContent = 'Writing lessons needs this page open in Claude.'; return; }
+    if (!Backend.available) { err.textContent = 'Open Parley through its standalone server to prepare a topic lesson.'; return; }
     closeSheet(); generateLesson(L.code, 'c' + Date.now().toString(36), t);
   };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
   sheet('Lesson on any topic', h('div', { class: 'body' },
-    h('p', { class: 'muted', style: 'margin:0;font-size:14px' }, `Claude writes a ${L.name} lesson for the situation you describe, using the ${Object.keys(prog(L.code).items).length} phrases you already know.`),
+    h('p', { class: 'muted', style: 'margin:0;font-size:14px' }, `Parley prepares a ${L.name} lesson for the situation you describe, using the ${Object.keys(prog(L.code).items).length} phrases you already know.`),
     inp, err, h('button', { class: 'btn primary', onclick: go }, h('span', null, 'Write this lesson'))));
   setTimeout(() => inp.focus(), 50);
+}
+
+async function openCourseStudio() {
+  const body = h('div', { class: 'body' });
+  sheet('Course studio', body);
+  const error = h('div', { class: 'err', role: 'alert' });
+  const refresh = async () => {
+    if (!body.isConnected) return;
+    body.replaceChildren(h('p', { class: 'muted' }, 'Loading your course library…'));
+    if (!Backend.available) {
+      body.replaceChildren(h('p', null, 'Open Parley through its standalone server to prepare and save full courses. Included lessons and your own phrase lessons work without a server.'));
+      return;
+    }
+    try {
+      const status = await Backend.request('/api/status'); Backend.admin = status.admin; Backend.configured = status.generationConfigured;
+      if (!status.admin) {
+        const token = h('input', { class: 'search', type: 'password', id: 'adminToken', autocomplete: 'off' });
+        body.replaceChildren(h('p', null, 'Administrator access prepares new courses. Learners do not need to sign in to open saved lessons.'),
+          h('label', { for: 'adminToken' }, 'Administrator token'), token, error,
+          h('button', { class: 'btn primary', onclick: async () => {
+            try { await Backend.request('/api/admin/session', { token: token.value }); token.value = ''; refresh(); }
+            catch (e) { error.textContent = e.message; }
+          } }, 'Sign in'));
+        token.focus(); return;
+      }
+      const catalog = await Backend.request('/api/catalog'); Backend.manifest = catalog.languages;
+      const data = await Backend.request('/api/jobs');
+      const available = catalog.languages.reduce((n, l) => n + l.ready, 0);
+      const total = catalog.languages.length * 30;
+      const progress = h('div', { role: 'status' }, `${available.toLocaleString()} / ${total.toLocaleString()} lessons available across ${catalog.languages.length} languages.`);
+      const jobBox = h('div', { class: 'field' });
+      const busy = data.jobs.some(j => ['queued', 'running'].includes(j.status));
+      const postJob = async languages => {
+        try { await Backend.request('/api/jobs', { languages }); await refresh(); }
+        catch (e) { error.textContent = e.message; }
+      };
+      body.replaceChildren(progress,
+        h('p', { class: 'muted' }, 'Each course has 30 sequential lessons. Builds reuse earlier vocabulary, skip saved lessons, and resume after a server restart. Generated translations are drafts awaiting language review.'),
+        status.generationConfigured ? h('p', { class: 'muted' }, 'New lessons use the model account configured on your server.')
+          : h('p', { class: 'err' }, 'Generation is not connected. Configure OPENAI_API_KEY on the server to build missing lessons.'),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', disabled: busy || !status.generationConfigured || !LANGS.some(l => l.code === S.lang), onclick: () => postJob([S.lang]) }, `Build ${cur().name} to Lesson 30`),
+          h('button', { class: 'btn', disabled: busy || !status.generationConfigured, onclick: () => postJob('all') }, `Build all ${catalog.languages.length} courses`)),
+        error, jobBox,
+        h('details', null, h('summary', null, 'Language coverage'), h('ul', { class: 'wordlist' }, catalog.languages.map(l =>
+          h('li', null, h('span', null, l.name), h('span', null, `${l.ready}/30`))))),
+        h('button', { class: 'btn', onclick: async () => { await Backend.loadLanguage(S.lang); refresh(); } }, 'Refresh library'),
+        h('button', { class: 'btn', onclick: async () => { await Backend.request('/api/admin/logout', {}); Backend.admin = false; refresh(); } }, 'Sign out'));
+      const drawJobs = jobs => {
+        jobBox.replaceChildren(...jobs.slice(0, 5).map(job => h('div', { class: 'panel' },
+          h('b', null, `Course build: ${job.status}`),
+          h('div', null, `${job.checked}/${job.total} lessons checked · ${job.generated} newly generated`),
+          job.current ? h('div', null, `${langInfo(job.current.code).name} · Lesson ${job.current.lesson}`) : null,
+          job.error ? h('div', { class: 'err' }, job.error) : null,
+          ['running', 'queued', 'paused', 'failed'].includes(job.status) ? h('button', { class: 'btn', onclick: async () => {
+            const action = ['paused', 'failed'].includes(job.status) ? 'resume' : 'pause';
+            try { await Backend.request(`/api/jobs/${job.id}/${action}`, {}); refresh(); }
+            catch (e) { error.textContent = e.message; }
+          } }, ['paused', 'failed'].includes(job.status) ? 'Resume build' : 'Pause after current lesson') : null)));
+      };
+      drawJobs(data.jobs);
+      const poll = async () => {
+        if (!jobBox.isConnected) return;
+        try {
+          const latest = await Backend.request('/api/jobs');
+          if (!jobBox.isConnected) return;
+          drawJobs(latest.jobs);
+          if (latest.jobs.some(j => ['queued', 'running'].includes(j.status))) setTimeout(poll, 2500);
+          else if (busy) { await Backend.loadLanguage(S.lang); refresh(); }
+        } catch (e) { if (error.isConnected) error.textContent = e.message; }
+      };
+      if (busy) setTimeout(poll, 2500);
+    } catch (e) { body.replaceChildren(h('p', { class: 'err' }, e.message)); }
+  };
+  await refresh();
 }
 
 /* ---------- boot ---------- */
 loadLocal();
 TTS.init();
 renderHome();
-Cloud.init();
-window.__parley = { S, startSession, prog, getLesson, contains, normLesson, genPrompt, get X() { return X; } };
+Backend.init();
+window.__parley = { S, startSession, prog, getLesson, contains, normLesson, Backend, get X() { return X; } };
