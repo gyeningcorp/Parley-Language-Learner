@@ -117,8 +117,8 @@ class LessonStore {
       const course = await this.course(code);
       if (!topic && Array.from({ length: id - 1 }, (_, n) => n + 1).some(n => !course[n]))
         throw Object.assign(new Error('Build the earlier lessons first so this course stays progressive.'), { status: 409 });
-      const prior = Object.entries(course).filter(([n]) => topic || Number(n) < id).sort((a, b) => a[0] - b[0]).map(([, l]) => l);
-      const lesson = await this.provider(prompt(code, id, prior, topic, gender));
+      const prior = Object.entries(course).filter(([n]) => Number(n) < id).sort((a, b) => a[0] - b[0]).map(([, l]) => l);
+      const lesson = await this.provider(prompt(code, id, prior, topic, topic ? gender : 'neutral'));
       const value = { ...validateLesson(lesson), model: lesson.model, createdAt: lesson.createdAt, language: code, lesson: topic ? null : id };
       if (!topic) await atomicJSON(this.file(code, id), value);
       return value;

@@ -1218,7 +1218,7 @@ async function generateLesson(code, id, topic) {
   if (!Backend.admin) { openCourseStudio(); return; }
   GEN = { code, id, ctl: new AbortController(), chars: 0 }; renderHome();
   try {
-    const result = await Backend.request('/api/lessons/generate', { code, id: topic ? 1 : Number(id), topic, gender: S.settings.gender }, GEN.ctl.signal);
+    const result = await Backend.request('/api/lessons/generate', { code, id: topic ? stats(code).next : Number(id), topic, gender: S.settings.gender }, GEN.ctl.signal);
     const L = normLesson(result.lesson, topic); L.reviewStatus = 'unreviewed';
     if (topic) { L.topic = topic; saveLesson(code, id, L); }
     else { (Backend.lessons[code] = Backend.lessons[code] || {})[id] = L; }
@@ -1532,7 +1532,7 @@ function openTopic() {
   };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
   sheet('Lesson on any topic', h('div', { class: 'body' },
-    h('p', { class: 'muted', style: 'margin:0;font-size:14px' }, `Parley prepares a ${L.name} lesson for the situation you describe, using the ${Object.keys(prog(L.code).items).length} phrases you already know.`),
+    h('p', { class: 'muted', style: 'margin:0;font-size:14px' }, `Parley prepares a ${L.name} lesson for your situation, using earlier course material as context for your current lesson level.`),
     inp, err, h('button', { class: 'btn primary', onclick: go }, h('span', null, 'Write this lesson'))));
   setTimeout(() => inp.focus(), 50);
 }

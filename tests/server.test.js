@@ -84,6 +84,16 @@ test('invalid provider output is rejected before saving', async t => {
   const invalid = fixture(); invalid.items[1].t = invalid.items[0].t;
   assert.throws(() => validateLesson(invalid), /distinct|Backward/);
 });
+test('topic context stays at the learner course level and shared course forms stay neutral', async t => {
+  const prompts = [];
+  const app = await setup(t, { provider: async p => { prompts.push(p); return fixture(); } });
+  await app.store.generate('fr-FR', 2, { gender: 'female' });
+  assert.match(prompts[0], /gender preference: neutral/);
+  await app.store.generate('es-MX', 1, { topic: 'At the café', gender: 'female' });
+  assert.match(prompts[1], /gender preference: female/);
+  assert.match(prompts[1], /known phrases.*\n\(none\)/);
+  assert.doesNotMatch(prompts[1], /me quedé/);
+});
 test('OpenAI request uses server credentials and strict Responses structured output; failures are sanitized', async () => {
   let request;
   const provider = createProvider({ key: 'test-key', fetchImpl: async (url, options) => {
