@@ -13,6 +13,11 @@ It is a single HTML file with no dependencies and no build step to run it.
 
 Two modes: **Active** (tap Got it / Missed after each answer) and **Hands-free** (plays straight through like an audio course).
 
+## Practice studio
+
+- **Create a lesson:** add 3–14 trusted translations, one per line as `English cue | translation | optional romanization`. Your lessons are saved locally under Your topics and use the same audio and spaced-recall engine. This works without Claude.
+- **Phrasebook:** search learned phrases by translation, English cue, or romanization; filter to due reviews and listen at your chosen speech speed.
+
 ## Languages and content
 
 - One 30-lesson path shared by every language (`SYLLABUS` in `src/content.js`).

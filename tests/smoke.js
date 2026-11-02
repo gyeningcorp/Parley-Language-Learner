@@ -71,6 +71,26 @@ const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} 
   const days = await page.evaluate(() => Math.round((Math.min(...Object.values(__parley.prog('es-MX').items).map(i => i.due)) - Date.now()) / 864e5));
   check('Review schedules next gap at 5 days', days === 5, days + ' days');
 
+  await page.getByRole('button', { name: 'Phrasebook', exact: true }).click();
+  await page.getByRole('searchbox', { name: 'Search phrases' }).fill('gracias');
+  check('Phrasebook searches learned translations', await page.locator('[role="dialog"] .wordlist li').count() > 0);
+  await page.getByRole('searchbox', { name: 'Search phrases' }).fill('no-match-xyz');
+  check('Phrasebook handles empty search', await page.locator('[role="dialog"] .wordlist li').count() === 0);
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Create a lesson', exact: true }).click();
+  await page.locator('#lessonTitle').fill('Travel kit');
+  await page.locator('#lessonPhrases').fill('hello | hola');
+  await page.getByRole('button', { name: 'Save lesson', exact: true }).click();
+  check('Builder rejects incomplete lessons', (await page.locator('[role="alert"]').innerText()).includes('3 and 14'));
+  await page.locator('#lessonPhrases').fill('where | dónde\nwater | agua\nticket | boleto');
+  await page.getByRole('button', { name: 'Save lesson', exact: true }).click();
+  await page.reload();
+  const custom = await page.evaluate(() => Object.entries(__parley.S.lessons['es-MX'] || {}).find(([, l]) => l.title === 'Travel kit'));
+  check('Custom lessons persist after reload', !!custom && custom[1].items.length === 3 && custom[1].ai === false);
+  await page.evaluate(id => { __parley.S.settings.mode = 'handsfree'; __parley.startSession('lesson', 'es-MX', id); }, custom[0]);
+  await page.waitForFunction(() => !__parley.X, null, { timeout: 120000 });
+  check('Custom lesson completes through recall engine', await page.evaluate(id => !!__parley.prog('es-MX').done[id], custom[0]));
+
   check('No page errors', errors.length === 0, errors.join('; '));
   await browser.close();
   process.exit(failed ? 1 : 0);

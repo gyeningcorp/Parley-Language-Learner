@@ -1149,6 +1149,10 @@ function renderHome(result, flags = {}) {
   }
   hero.append(h('div', { class: 'voice', id: 'voiceLine' }));
   kids.push(hero);
+  kids.push(h('section', { class: 'panel' }, h('h2', null, 'Your practice studio'),
+    h('div', { class: 'row' },
+      h('button', { class: 'btn', onclick: openPhrasebook }, 'Phrasebook'),
+      h('button', { class: 'btn', onclick: openLessonBuilder }, 'Create a lesson'))));
 
   const custom = Object.entries(S.lessons[L.code] || {}).filter(([k]) => k.startsWith('c'));
   if (custom.length) {
@@ -1291,6 +1295,69 @@ function openSettings(focus) {
       h('div', { class: 'hint' }, 'Applies to lessons Claude writes from now on.')),
     confirmBox));
   if (focus === 'voices') setTimeout(() => $('#voiceSettings select')?.focus(), 80);
+}
+function parsePhraseLines(text) {
+  const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if (lines.length < 3 || lines.length > 14) throw new Error('Add between 3 and 14 phrases.');
+  const seen = new Set();
+  return lines.map((line, n) => {
+    const fields = line.split('|').map(s => s.trim());
+    if (fields.length < 2 || fields.length > 3 || !fields[0] || !fields[1])
+      throw new Error(`Line ${n + 1}: use English cue | translation | optional romanization.`);
+    if (fields.some(f => f.length > 300)) throw new Error(`Line ${n + 1}: keep each field under 300 characters.`);
+    const key = norm(fields[1]);
+    if (seen.has(key)) throw new Error(`Line ${n + 1}: duplicate translation.`);
+    seen.add(key);
+    return { en: fields[0], t: fields[1], r: fields[2] || '', build: [], note: '' };
+  });
+}
+function openLessonBuilder() {
+  const code = S.lang;
+  const title = h('input', { class: 'search', id: 'lessonTitle', maxlength: 80, placeholder: 'My travel essentials' });
+  const phrases = h('textarea', { class: 'search', id: 'lessonPhrases', rows: 8, maxlength: 15000,
+    placeholder: 'hello | hola\nthank you | gracias\nplease | por favor' });
+  const error = h('div', { class: 'err', role: 'alert' });
+  sheet('Create a lesson', h('div', { class: 'body' },
+    h('p', { class: 'muted' }, `Create a ${langInfo(code).name} audio lesson using translations you trust. No Claude connection required.`),
+    h('label', { for: 'lessonTitle' }, 'Lesson title'), title,
+    h('label', { for: 'lessonPhrases' }, 'Phrases'),
+    h('p', { class: 'muted' }, 'One phrase per line: English cue | translation | optional romanization. Add 3–14 phrases.'),
+    phrases, error, h('button', { class: 'btn primary', onclick: () => {
+      try {
+        if (!title.value.trim()) throw new Error('Give your lesson a title.');
+        const items = parsePhraseLines(phrases.value);
+        const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        saveLesson(code, id, { v: 1, title: title.value.trim(), ai: false, items, drills: [], dialogue: [], tips: [] });
+        closeSheet(); renderHome(null, { readyId: id });
+      } catch (e) { error.textContent = e.message; }
+    } }, 'Save lesson')));
+  title.focus();
+}
+function openPhrasebook() {
+  const code = S.lang;
+  const q = h('input', { class: 'search', type: 'search', 'aria-label': 'Search phrases', placeholder: 'Search translations or English cues' });
+  const filter = h('select', { class: 'search', 'aria-label': 'Filter phrases' },
+    h('option', { value: 'all' }, 'All learned phrases'), h('option', { value: 'due' }, 'Due for review'));
+  const list = h('ul', { class: 'wordlist' });
+  const count = h('div', { class: 'muted', role: 'status' });
+  const draw = () => {
+    const query = norm(q.value);
+    const items = Object.values(prog(code).items).filter(i =>
+      (filter.value !== 'due' || i.due <= Date.now()) &&
+      (!query || [i.t, i.en, i.r].some(v => norm(v).includes(query))))
+      .sort((a, b) => a.en.localeCompare(b.en));
+    count.textContent = items.length ? `${items.length} phrases` : 'No matching phrases. Complete a lesson to grow your phrasebook.';
+    list.replaceChildren(...items.map(i => h('li', null,
+      h('div', null, h('div', { class: 'w', dir: 'auto', lang: code }, i.t),
+        S.settings.roman && i.r ? h('div', { class: 'muted' }, i.r) : null,
+        h('div', null, i.en), h('small', { class: 'muted' }, i.due <= Date.now() ? 'Due for review' : 'Review ' + new Date(i.due).toLocaleDateString())),
+      h('button', { class: 'btn', 'aria-label': 'Listen: ' + i.en, onclick: () => {
+        TTS.cancel(); TTS.speak(i.t, { lang: code, rate: S.settings.rate });
+      } }, 'Listen'))));
+  };
+  q.addEventListener('input', draw); filter.addEventListener('change', draw);
+  sheet('Your phrasebook', h('div', { class: 'body' }, q, filter, count, list));
+  draw(); q.focus();
 }
 function openTopic() {
   const L = cur();
